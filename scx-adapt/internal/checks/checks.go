@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 )
 
 func CheckObj(path string) error {
@@ -100,9 +101,27 @@ func CheckScxAdded(scxFilename string, addedScxsPath string) error {
 
 	for _, e := range files {
 		if e.Name() == scxFilename {
-			return nil
+			goto scxFound
+		}
+	}
+	return fmt.Errorf("Scheduler '%s' is not found in %s\n", scxFilename, addedScxsPath)
+
+scxFound:
+	return nil
+}
+
+func ContainsDuplicate[T comparable](arr []T) (bool, []T) {
+	var duplicates []T
+
+	for i, a := range arr {
+		if slices.Contains(arr[i+1:], a) {
+			duplicates = append(duplicates, a)
 		}
 	}
 
-	return fmt.Errorf("Scheduler '%s' is not found in %s\n", scxFilename, addedScxsPath)
+	if len(duplicates) == 0 {
+		return false, nil
+	} else {
+		return true, duplicates
+	}
 }

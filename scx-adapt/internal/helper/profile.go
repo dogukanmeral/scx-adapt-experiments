@@ -2,33 +2,74 @@ package helper
 
 import (
 	"fmt"
-	"reflect"
+	"internal/checks"
+	"regexp"
 
 	"github.com/go-playground/validator/v10"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
+	Interval   int         `yaml:"internal" validate:"required,gte=1"` // ms
 	Schedulers []Scheduler `yaml:"schedulers" validate:"required,dive"`
 }
 
 type Scheduler struct {
-	Path      string    `yaml:"path" validate:"required"`                   // TODO: add: existence of file check and obj check
-	Priority  int       `yaml:"priority" validate:"required,gte=1,lte=139"` // TODO: add: priority conflict check
-	Criterias Criterias `yaml:"criterias"`
+	Path      string     `yaml:"path" validate:"required"`
+	Priority  int        `yaml:"priority" validate:"required,gte=1,lte=139"`
+	Criterias []Criteria `yaml:"criterias" validate:"required,dive"`
 }
 
-type Criterias struct {
-	LoadAvg1Min *float32 `yaml:"load_avg_1_min"`
-	LoadAvg1Max *float32 `yaml:"load_avg_1_max"`
+/*
+	Valid value_name(s):
+		(cpu|io|mem)_psi_(some|full)_(10|60|300)
+		load_avg_(1|5|15)
+		procs_running
+		procs_blocked
+		procs_disk_io
+*/
 
-	LoadAvg5Min *float32 `yaml:"load_avg_5_min"`
-	LoadAvg5Max *float32 `yaml:"load_avg_5_max"`
+var VALID_VALUE_REGEX = [...]string{
+	"^(cpu|io|mem)_psi_(some|full)_(10|60|300)$",
+	"^load_avg_(1|5|15)$",
+	"^procs_running$",
+	"^procs_blocked$",
+	"^procs_disk_io$",
+}
 
-	LoadAvg15Min *float32 `yaml:"load_avg_15_min"`
-	LoadAvg15Max *float32 `yaml:"load_avg_15_max"`
+type Criteria struct {
+	ValueName string   `yaml:"value_name" validate:"required"`
+	MoreThan  *float64 `yaml:"more_than"`
+	LessThan  *float64 `yaml:"less_than"`
+}
 
-	// TODO: add pressures, procs-r, procs-b, diskcurIO
+func (c Criteria) Validate() error {
+	v := validator.New()
+
+	if err := v.Struct(c); err != nil {
+		return err
+	}
+
+	for _, r := range VALID_VALUE_REGEX {
+		if m, _ := regexp.MatchString(r, c.ValueName); m {
+			goto valueNameValid
+		}
+	}
+	return fmt.Errorf("Invalid value_name: %s\n", c.ValueName)
+
+valueNameValid:
+
+	if c.MoreThan == nil && c.LessThan == nil {
+		return fmt.Errorf("There is no 'more_than' and/or 'less_than' parameter for value '%s'\n", c.ValueName)
+	}
+
+	if c.MoreThan != nil && c.LessThan != nil {
+		if *c.MoreThan >= *c.LessThan {
+			return fmt.Errorf("Parameter 'more_than' cannot be >= 'less_than' in value '%s'\n", c.ValueName)
+		}
+	}
+
+	return nil
 }
 
 func (s Scheduler) Validate() error {
@@ -38,22 +79,46 @@ func (s Scheduler) Validate() error {
 		return err
 	}
 
-	r := reflect.ValueOf(s.Criterias)
+	// Check if file at the path exists and a BPF object file
+	if err := checks.CheckObj(s.Path); err != nil {
+		return err
+	}
 
-	for i := 0; i < r.NumField(); i++ {
-		if !r.Field(i).IsNil() {
-			return nil
+	// Check all criterias inside scheduler
+	var valueNames []string
+	for _, c := range s.Criterias {
+		valueNames = append(valueNames, c.ValueName)
+
+		if err := c.Validate(); err != nil {
+			return fmt.Errorf("Invalid criteria '%s': %s", c.ValueName, err)
 		}
 	}
 
-	return fmt.Errorf("No criterias are defined in %s", s.Path)
+	// Check if a criteria is defined multiple times in same scheduler
+	cont, dup := checks.ContainsDuplicate(valueNames)
+	if cont {
+		return fmt.Errorf("Criteria(s) '%s' defined multiple times for scheduler '%s'\n", dup, s.Path)
+	}
+
+	return nil
 }
 
 func (conf Config) Validate() error {
+	var priorities []int
+
+	// Check all schedulers in config
 	for _, s := range conf.Schedulers {
+		priorities = append(priorities, s.Priority)
+
 		if err := s.Validate(); err != nil {
 			return fmt.Errorf("Error in scheduler '%s': %w", s.Path, err)
 		}
+	}
+
+	// Check if a priority is assigned to multiple schedulers
+	cont, dup := checks.ContainsDuplicate(priorities)
+	if cont {
+		return fmt.Errorf("Priority(s) '%d' is/are assigned for multiple schedulers\n", dup)
 	}
 
 	return nil
