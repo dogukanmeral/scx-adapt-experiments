@@ -180,11 +180,20 @@ var features []string = []string{"loadavg-1min", "loadavg-5min", "loadavg-15min"
 	"ctxt", "procs-r", "procs-b", "diskcurIO", "diskIOms", "rtxPackets", "txPackets"}
 
 func main() {
-	csvFile, err := os.Create("sys-data.csv")
-	if err != nil {
-		panic(err)
+	var csvFile *os.File
+
+	if len(os.Args) == 2 {
+		csvFile, err := os.Create(os.Args[1])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		defer csvFile.Close()
+	} else {
+		fmt.Println("Pass a single filepath to write as an argument.")
+		os.Exit(1)
 	}
-	defer csvFile.Close()
 
 	writer := csv.NewWriter(csvFile)
 	defer writer.Flush()
