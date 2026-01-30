@@ -24,6 +24,7 @@ var removeCmd = &cobra.Command{
 					fmt.Println(err)
 					os.Exit(1)
 				}
+				fmt.Printf("Scheduler removed: %s\n", scx)
 			}
 		} else {
 			fmt.Println("Missing scheduler(s) as argument. scx-adapt --help to see usage")

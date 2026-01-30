@@ -64,6 +64,7 @@ func DiskCurIO() (int, error) {
 	return curIO, nil
 }
 
+// 1-min 5-min 15-min
 // e.g.: 0.10 0.26 0.33
 func LoadAvgs() ([]float64, error) {
 	loadAvgData, err := os.ReadFile("/proc/loadavg")
@@ -101,7 +102,12 @@ const (
 	Full PressureOption = "full"
 )
 
-// avg10 avg60 avg300
+/*
+ 	“some” line indicates the share of time in which at least some tasks are stalled on a given resource.
+	“full” line indicates the share of time in which all non-idle tasks are stalled on a given resource simultaneously.
+*/
+
+// avg10 avg60 avg300 (seconds)
 func Pressures(presType PressureType, presOpt PressureOption) ([]float64, error) {
 	presFile := fmt.Sprintf("/proc/pressure/%s", presType)
 
