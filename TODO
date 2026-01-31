@@ -5,4 +5,6 @@
 [ ] Profile runner function
 [ ] Profile runner state file (readonly)
 [ ] systemd service file (which takes yaml templates)
-[ ] add-profile, rm-profile, start-profile, print-profile helpers and commands
+[ ] add-profile (to /etc/scx-adapt), rm-profile, start-profile (from /etc if, not absolute path or not in cwd), print-profile helpers and commands
+[ ] Add detailed logging to journal
+[ ] Add desktop notifications if VM is available
