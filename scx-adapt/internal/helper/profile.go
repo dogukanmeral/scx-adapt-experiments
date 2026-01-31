@@ -20,6 +20,19 @@ type Scheduler struct {
 	Criterias []Criteria `yaml:"criterias" validate:"required,dive"`
 }
 
+// Interface for sorting schedulers by their priority
+func (c Config) Len() int {
+	return len(c.Schedulers)
+}
+
+func (c Config) Less(i, j int) bool {
+	return c.Schedulers[i].Priority < c.Schedulers[j].Priority
+}
+
+func (c Config) Swap(i, j int) {
+	c.Schedulers[i], c.Schedulers[j] = c.Schedulers[j], c.Schedulers[i]
+}
+
 /*
 	Valid value_name(s):
 		(cpu|io|mem)_psi_(some|full)_(10|60|300)
