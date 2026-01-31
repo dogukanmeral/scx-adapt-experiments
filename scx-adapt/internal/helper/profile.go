@@ -3,7 +3,9 @@ package helper
 import (
 	"fmt"
 	"internal/checks"
+	"os"
 	"regexp"
+	"sort"
 
 	"github.com/go-playground/validator/v10"
 	"gopkg.in/yaml.v3"
@@ -138,8 +140,8 @@ func (conf Config) Validate() error {
 }
 
 func ValidateYAML(yamlData []byte) error {
-	var conf Config
-	if err := yaml.Unmarshal(yamlData, &conf); err != nil {
+	conf, err := YamlConvert(yamlData)
+	if err != nil {
 		return err
 	}
 
@@ -148,4 +150,33 @@ func ValidateYAML(yamlData []byte) error {
 	}
 
 	return nil
+}
+
+func YamlConvert(data []byte) (Config, error) {
+	var conf Config
+	if err := yaml.Unmarshal(data, &conf); err != nil {
+		return conf, err
+	}
+
+	return conf, nil
+}
+
+func RunProfile(profilePath string) error { // TODO: add /etc/scx-adapt and cwd stuff to cmd part, helpers just get absolute paths
+	profileData, err := os.ReadFile(profilePath)
+	if err != nil {
+		return fmt.Errorf("Error occured while reading file '%s': %s\n", profilePath, err)
+	}
+
+	if err := ValidateYAML(profileData); err != nil {
+		return err
+	}
+
+	conf, err := YamlConvert(profileData)
+	if err != nil {
+		return err
+	}
+
+	sort.Sort(conf) // Sort schedulers by their priority (smaller int has higher priority)
+
+	// TODO: iterate over schedulers here (considering interval), add helpers for value checking
 }
