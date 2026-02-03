@@ -12,7 +12,7 @@ import (
 // Use for:
 //
 //	/proc/stat: procs_running, procs_blocked
-func getVariableAsInt(filePath string, variableName string) (int, error) {
+func GetVariableAsInt(filePath string, variableName string) (int, error) {
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -136,4 +136,15 @@ func Pressures(presType PressureType, presOpt PressureOption) ([]float64, error)
 	}
 
 	return pressures, nil
+}
+
+func FloatsToStr(slice []float64) []string {
+
+	out := make([]string, len(slice))
+
+	for i, v := range slice {
+		out[i] = strconv.FormatFloat(v, 'f', -1, 64)
+	}
+
+	return out
 }
