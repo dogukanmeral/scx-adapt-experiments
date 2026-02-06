@@ -94,3 +94,8 @@ func ContainsDuplicate[T comparable](arr []T) (bool, []T) {
 		return true, duplicates
 	}
 }
+
+func IsProfileRunning() bool {
+	_, err := os.Stat("/tmp/scx-adapt.lock")
+	return !errors.Is(err, os.ErrNotExist)
+}
