@@ -64,12 +64,20 @@ func DiskCurIO() (int, error) {
 	return curIO, nil
 }
 
+type LoadAvgMinute int
+
+const (
+	Avg1min  LoadAvgMinute = 0
+	Avg5min  LoadAvgMinute = 1
+	Avg15min LoadAvgMinute = 2
+)
+
 // 1-min 5-min 15-min
 // e.g.: 0.10 0.26 0.33
-func LoadAvgs() ([]float64, error) {
+func LoadAvg(minutes LoadAvgMinute) (float64, error) {
 	loadAvgData, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
-		return nil, fmt.Errorf("Error occured while reading file '%s': %s\n", "/proc/loadavg", err)
+		return 0, fmt.Errorf("Error occured while reading file '%s': %s\n", "/proc/loadavg", err)
 	}
 
 	loadAvgsStr := strings.Fields(string(loadAvgData))[:3]
@@ -80,19 +88,34 @@ func LoadAvgs() ([]float64, error) {
 		loadAvgsFloat[i], err = strconv.ParseFloat(s, 64)
 
 		if err != nil {
-			return nil, fmt.Errorf("Error occured while converting '%s' to float64: %s\n", s, err)
+			return 0, fmt.Errorf("Error occured while converting '%s' to float64: %s\n", s, err)
 		}
 	}
 
-	return loadAvgsFloat, nil
+	return loadAvgsFloat[minutes], nil
+}
+
+func ParseLoadAvg(loadAvgValName string) LoadAvgMinute {
+	var laMinute LoadAvgMinute
+
+	switch strings.Split(loadAvgValName, "_")[2] {
+	case "1":
+		laMinute = Avg1min
+	case "5":
+		laMinute = Avg5min
+	case "15":
+		laMinute = Avg15min
+	}
+
+	return laMinute
 }
 
 type PressureType string
 
 const (
-	Cpu    PressureType = "cpu"
-	IO     PressureType = "io"
-	Memory PressureType = "memory"
+	Cpu PressureType = "cpu"
+	IO  PressureType = "io"
+	Mem PressureType = "mem"
 )
 
 type PressureOption string
@@ -102,18 +125,26 @@ const (
 	Full PressureOption = "full"
 )
 
+type PressureSecond int
+
+const (
+	Avg10sec  PressureSecond = 0
+	Avg60sec  PressureSecond = 1
+	Avg300sec PressureSecond = 2
+)
+
 /*
  	“some” line indicates the share of time in which at least some tasks are stalled on a given resource.
 	“full” line indicates the share of time in which all non-idle tasks are stalled on a given resource simultaneously.
 */
 
 // avg10 avg60 avg300 (seconds)
-func Pressures(presType PressureType, presOpt PressureOption) ([]float64, error) {
+func Pressure(presType PressureType, presOpt PressureOption, presSec PressureSecond) (float64, error) {
 	presFile := fmt.Sprintf("/proc/pressure/%s", presType)
 
 	presData, err := os.ReadFile(presFile)
 	if err != nil {
-		return nil, fmt.Errorf("Error occured while reading file '%s': %s\n", presFile, err)
+		return 0, fmt.Errorf("Error occured while reading file '%s': %s\n", presFile, err)
 	}
 
 	re := regexp.MustCompile(fmt.Sprintf("^%s", presOpt))
@@ -127,7 +158,7 @@ func Pressures(presType PressureType, presOpt PressureOption) ([]float64, error)
 				presFloat64, err := strconv.ParseFloat(presStr, 64)
 
 				if err != nil {
-					return nil, fmt.Errorf("Error occured while converting '%s' to float64: %s\n", presStr, err)
+					return 0, fmt.Errorf("Error occured while converting '%s' to float64: %s\n", presStr, err)
 				}
 
 				pressures = append(pressures, presFloat64)
@@ -135,7 +166,40 @@ func Pressures(presType PressureType, presOpt PressureOption) ([]float64, error)
 		}
 	}
 
-	return pressures, nil
+	return pressures[presSec], nil
+}
+
+func ParsePressure(pressureValName string) (PressureType, PressureOption, PressureSecond) { // 0: avg10, 1: avg60, 2: avg300
+	var pType PressureType
+	var pOpt PressureOption
+	var pSec PressureSecond
+
+	switch strings.Split(pressureValName, "_")[0] {
+	case string(Cpu):
+		pType = Cpu
+	case string(IO):
+		pType = IO
+	case string(Mem):
+		pType = Mem
+	}
+
+	switch strings.Split(pressureValName, "_")[2] {
+	case string(Some):
+		pOpt = Some
+	case string(Full):
+		pOpt = Full
+	}
+
+	switch strings.Split(pressureValName, "_")[3] {
+	case "10":
+		pSec = Avg10sec
+	case "60":
+		pSec = Avg60sec
+	case "300":
+		pSec = Avg300sec
+	}
+
+	return pType, pOpt, pSec
 }
 
 func FloatsToStr(slice []float64) []string {
