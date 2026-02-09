@@ -91,21 +91,26 @@ func RunProfile(profilePath string) error { // TODO: add /etc/scx-adapt and isAb
 NEXT_SCHED:
 	for _, s := range conf.Schedulers {
 		for _, c := range s.Criterias {
-			if b, err := c.Satisfies(); !b || err != nil {
+			if b, err := c.Satisfies(); !b {
+				if err != nil {
+					return err
+				}
+
 				continue NEXT_SCHED
 			}
-		}
 
-		if s.Path != currentSched.Path {
-			err := StartScx(s.Path)
-			if err != nil {
-				return err
+			if s.Path != currentSched.Path {
+				err := StartScx(s.Path)
+				if err != nil {
+					return err
+				}
+
+				currentSched = s
 			}
 
-			currentSched = s
-		}
+			goto SCHED_STARTED
 
-		goto SCHED_STARTED
+		}
 	}
 
 SCHED_STARTED:
