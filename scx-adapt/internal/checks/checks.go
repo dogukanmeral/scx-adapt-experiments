@@ -4,6 +4,7 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"internal/errs"
 	"os"
 	"os/exec"
 	"slices"
@@ -13,16 +14,16 @@ func CheckObj(path string) error {
 	file, err := os.Open(path)
 
 	if err != nil {
-		return fmt.Errorf("Error occured while opening file '%s': %s\n", path, err)
+		return err // check for os.ErrNotExist in tests
 	}
 
 	elfFile, err := elf.NewFile(file)
 	if err != nil {
-		return fmt.Errorf("Not an object file: %s\n", path)
+		return &errs.NotObjFileError{Msg: fmt.Sprintf("Not an object file: %s\n", path)}
 	}
 
 	if elfFile.Type != elf.ET_REL || elfFile.Machine != elf.EM_BPF {
-		return fmt.Errorf("Not a BPF file: %s\n", path)
+		return &errs.NotBPFFileError{Msg: fmt.Sprintf("Not a BPF file: %s\n", path)}
 	}
 
 	hasStructOpsLink := false
@@ -35,7 +36,7 @@ func CheckObj(path string) error {
 	}
 
 	if !hasStructOpsLink {
-		return fmt.Errorf("Doesn't include '.struct_ops.link' section: %s\n", path)
+		return &errs.NoStructOpsError{Msg: fmt.Sprintf("Doesn't include '.struct_ops.link' section: %s\n", path)}
 	}
 
 	return nil

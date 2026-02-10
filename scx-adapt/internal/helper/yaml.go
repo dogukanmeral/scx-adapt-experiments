@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"internal/checks"
+	"internal/errs"
 	"regexp"
 
 	"github.com/go-playground/validator/v10"
@@ -69,17 +70,21 @@ func (c Criteria) Validate() error {
 			goto valueNameValid
 		}
 	}
-	return fmt.Errorf("Invalid value_name: %s\n", c.ValueName)
+	return &errs.InvalidValueNameError{Msg: fmt.Sprintf("Invalid value_name: %s", c.ValueName)}
 
 valueNameValid:
 
 	if c.MoreThan == nil && c.LessThan == nil {
-		return fmt.Errorf("There is no 'more_than' and/or 'less_than' parameter for value '%s'\n", c.ValueName)
+		return &errs.MissingParameterError{
+			Msg: fmt.Sprintf("There is no 'more_than' and/or 'less_than' parameter for value '%s'", c.ValueName),
+		}
 	}
 
 	if c.MoreThan != nil && c.LessThan != nil {
 		if *c.MoreThan >= *c.LessThan {
-			return fmt.Errorf("Parameter 'more_than' cannot be >= 'less_than' in value '%s'\n", c.ValueName)
+			return &errs.ConflictParametersError{
+				Msg: fmt.Sprintf("Parameter 'more_than' cannot be >= 'less_than' in value '%s'", c.ValueName),
+			}
 		}
 	}
 
@@ -104,14 +109,14 @@ func (s Scheduler) Validate() error {
 		valueNames = append(valueNames, c.ValueName)
 
 		if err := c.Validate(); err != nil {
-			return fmt.Errorf("Invalid criteria '%s': %s", c.ValueName, err)
+			return err
 		}
 	}
 
 	// Check if a criteria is defined multiple times in same scheduler
 	cont, dup := checks.ContainsDuplicate(valueNames)
 	if cont {
-		return fmt.Errorf("Criteria(s) '%s' defined multiple times for scheduler '%s'\n", dup, s.Path)
+		return &errs.ConflictCriteriasError{Msg: fmt.Sprintf("Criteria(s) '%s' defined multiple times for scheduler '%s'", dup, s.Path)}
 	}
 
 	return nil
@@ -131,14 +136,14 @@ func (conf Config) Validate() error {
 		priorities = append(priorities, s.Priority)
 
 		if err := s.Validate(); err != nil {
-			return fmt.Errorf("Error in scheduler '%s': %w", s.Path, err)
+			return err
 		}
 	}
 
 	// Check if a priority is assigned to multiple schedulers
 	cont, dup := checks.ContainsDuplicate(priorities)
 	if cont {
-		return fmt.Errorf("Priority(s) '%d' is/are assigned for multiple schedulers\n", dup)
+		return &errs.ConflictPrioritiesError{Msg: fmt.Sprintf("Priority(s) '%d' is/are assigned for multiple schedulers", dup)}
 	}
 
 	return nil
@@ -155,7 +160,7 @@ func YamlToConfig(yamlData []byte) (Config, error) {
 	}
 
 	if err := conf.Validate(); err != nil {
-		return conf, fmt.Errorf("Invalid configuration: %w", err)
+		return conf, err
 	}
 
 	return conf, nil
