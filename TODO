@@ -1,10 +1,17 @@
 # v0.1
 
+[X] Fix YAML unmarshalling and checks
+[X] Fix running profiles logic
+[X] Write unit tests for functions
 [X] Add wait_time to YAML config
 [X] Ordering scheds by priorities and conflict checking in YAML config
-[ ] Profile runner function
+[X] Profile runner function
 [ ] Profile runner state file (readonly)
-[ ] systemd service file (which takes yaml templates)
-[ ] add-profile (to /etc/scx-adapt), rm-profile, start-profile (from /etc if, not absolute path or not in cwd), print-profile helpers and commands
-[ ] Add detailed logging to journal
-[ ] Add desktop notifications if VM is available
+[ ] add-profile (to /etc/scx-adapt), rm-profile, start-profile (from /etc if, not absolute path or not in cwd), status helpers and commands
+[ ] Commands' explanations and auto-completion
+
+# Backlog
+
+[ ] Detailed logging to journal
+[ ] Systemd service file (which takes yaml templates)
+[ ] Desktop notifications if WM is available
