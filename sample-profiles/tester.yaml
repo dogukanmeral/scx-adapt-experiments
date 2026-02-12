@@ -1,0 +1,12 @@
+interval: 1000
+schedulers:
+  - path: "bytecode/fifo.bpf.c.o"
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        more_than: 3
+  - path: "bytecode/lottery.bpf.c.o"
+    priority: 2
+    criterias:
+      - value_name: load_avg_1
+        more_than: 3
