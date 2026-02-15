@@ -10,10 +10,8 @@ ML_DATASETS = PROJECT_ROOT / "ml" / "datasets"
 OUTPUT_FILE = ML_DATASETS / "combined_dataset.csv"
 
 # Create datasets folder in ml/datasets if missing
-def create_dataset_folders():
-
-    ML_DATASETS.mkdir(parents=True, exist_ok=True)
-    print("Created datasets folder.")
+ML_DATASETS.mkdir(parents=True, exist_ok=True)
+print("Created datasets folder.")
 
 # Read every csv from datasets and create dataFrames
 csv_files = list(UPPER_DATASETS.glob("*.csv"))
@@ -32,6 +30,12 @@ for file in csv_files:
 
     dfs.append(df)
     
+# Concatenate
+combined_df = pd.concat(dfs, ignore_index=True)
+print(f"Combined shape: {combined_df.shape}")
+
+combined_df.to_csv(OUTPUT_FILE, index=False)
+
 # Add id, scheduler, task type (cpu-io-mem)
 
 # Concatenate results
