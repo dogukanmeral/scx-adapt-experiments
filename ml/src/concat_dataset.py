@@ -19,6 +19,7 @@ csv_files = list(UPPER_DATASETS.glob("*.csv"))
 if not csv_files:
     raise ValueError(f"No csv files in {UPPER_DATASETS}")
 
+# Add every csv file as a dataFrame into a list
 dfs = []
 
 for file in csv_files:
@@ -35,7 +36,3 @@ combined_df = pd.concat(dfs, ignore_index=True)
 print(f"Combined shape: {combined_df.shape}")
 
 combined_df.to_csv(OUTPUT_FILE, index=False)
-
-# Add id, scheduler, task type (cpu-io-mem)
-
-# Concatenate results
