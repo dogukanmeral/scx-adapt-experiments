@@ -29,10 +29,17 @@ def basic_cleaning(df):
 
 # time_ms processing
 def process_time(df):
+    """Convert time_ms to a Unix timestamp (int64 seconds) and sort.
 
+    Previously stored as datetime64, which serialises to an ISO string in CSV
+    and is then silently ignored during scaling/feature selection. Storing as
+    a plain integer keeps it usable as a numeric feature.
+    """
     print("Processing time column...")
 
-    df["time"] = pd.to_datetime(df["time_ms"], unit="ms", errors="coerce")
+    time_dt = pd.to_datetime(df["time_ms"], unit="ms", errors="coerce")
+    df = df.copy()
+    df["time"] = time_dt.astype("int64") // 10 ** 9  # Unix seconds (int64)
     df = df.sort_values("time")
 
     return df
@@ -92,8 +99,7 @@ def scale_train_val_test(train_df, val_df, test_df):
 
     scaler = StandardScaler()
 
-    numeric_cols = train_df.select_dtypes(include=["int64", "float64"]).columns
-    numeric_cols = [c for c in numeric_cols if c != "time"]
+    numeric_cols = train_df.select_dtypes(include=["int64", "float64"]).columns.tolist()
 
     # FIT ONLY TRAIN
     scaler.fit(train_df[numeric_cols])
