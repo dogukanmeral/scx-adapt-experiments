@@ -1,11 +1,11 @@
 interval: 1000
 schedulers:
-  - path: "bytecode/fifo.bpf.c.o"
+  - path: "/etc/scx-adapt/schedulers/fifo.bpf.c.o"
     priority: 1
     criterias:
       - value_name: load_avg_1
-        more_than: 3
-  - path: "bytecode/lottery.bpf.c.o"
+        less_than: 3
+  - path: "/etc/scx-adapt/schedulers/prio.bpf.c.o"
     priority: 2
     criterias:
       - value_name: load_avg_1
