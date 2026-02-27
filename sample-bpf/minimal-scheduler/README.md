@@ -1,0 +1,1 @@
+Example schedulers from the [minimal-scheduler](https://github.com/parttimenerd/minimal-scheduler) repository on Github (schedulers here may not be up-to-date with the minimal-scheduler repository).

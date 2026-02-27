@@ -3,7 +3,7 @@
 # System logging and scripts
 
 [x] README file
-[ ] More schedulers
+[x] More schedulers
 [ ] Fix problems of logging parts
 [ ] More sample profiles using new schedulers
 [ ] New workload scenarios
