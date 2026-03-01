@@ -202,9 +202,6 @@ void BPF_STRUCT_OPS(qmap_enqueue, struct task_struct *p, u64 enq_flags)
 	void *ring;
 	s32 cpu;
 
-	if (enq_flags & SCX_ENQ_REENQ)
-		__sync_fetch_and_add(&nr_reenqueued, 1);
-
 	if (p->flags & PF_KTHREAD) {
 		if (stall_kernel_nth && !(++kernel_cnt % stall_kernel_nth))
 			return;
@@ -323,9 +320,12 @@ static bool dispatch_highpri(bool from_timer)
 
 		if (tctx->highpri) {
 			/* exercise the set_*() and vtime interface too */
-			scx_bpf_dsq_move_set_slice(BPF_FOR_EACH_ITER, slice_ns * 2);
-			scx_bpf_dsq_move_set_vtime(BPF_FOR_EACH_ITER, highpri_seq++);
-			scx_bpf_dsq_move_vtime(BPF_FOR_EACH_ITER, p, HIGHPRI_DSQ, 0);
+			__COMPAT_scx_bpf_dsq_move_set_slice(
+				BPF_FOR_EACH_ITER, slice_ns * 2);
+			__COMPAT_scx_bpf_dsq_move_set_vtime(
+				BPF_FOR_EACH_ITER, highpri_seq++);
+			__COMPAT_scx_bpf_dsq_move_vtime(
+				BPF_FOR_EACH_ITER, p, HIGHPRI_DSQ, 0);
 		}
 	}
 
@@ -342,8 +342,9 @@ static bool dispatch_highpri(bool from_timer)
 		else
 			cpu = scx_bpf_pick_any_cpu(p->cpus_ptr, 0);
 
-		if (scx_bpf_dsq_move(BPF_FOR_EACH_ITER, p, SCX_DSQ_LOCAL_ON | cpu,
-				     SCX_ENQ_PREEMPT)) {
+		if (__COMPAT_scx_bpf_dsq_move(BPF_FOR_EACH_ITER, p,
+					      SCX_DSQ_LOCAL_ON | cpu,
+					      SCX_ENQ_PREEMPT)) {
 			if (cpu == this_cpu) {
 				dispatched = true;
 				__sync_fetch_and_add(&nr_expedited_local, 1);
@@ -532,35 +533,20 @@ bool BPF_STRUCT_OPS(qmap_core_sched_before,
 	return task_qdist(a) > task_qdist(b);
 }
 
-SEC("tp_btf/sched_switch")
-int BPF_PROG(qmap_sched_switch, bool preempt, struct task_struct *prev,
-	     struct task_struct *next, unsigned long prev_state)
-{
-	if (!__COMPAT_scx_bpf_reenqueue_local_from_anywhere())
-		return 0;
-
-	/*
-	 * If @cpu is taken by a higher priority scheduling class, it is no
-	 * longer available for executing sched_ext tasks. As we don't want the
-	 * tasks in @cpu's local dsq to sit there until @cpu becomes available
-	 * again, re-enqueue them into the global dsq. See %SCX_ENQ_REENQ
-	 * handling in qmap_enqueue().
-	 */
-	switch (next->policy) {
-	case 1: /* SCHED_FIFO */
-	case 2: /* SCHED_RR */
-	case 6: /* SCHED_DEADLINE */
-		scx_bpf_reenqueue_local();
-	}
-
-	return 0;
-}
-
 void BPF_STRUCT_OPS(qmap_cpu_release, s32 cpu, struct scx_cpu_release_args *args)
 {
-	/* see qmap_sched_switch() to learn how to do this on newer kernels */
-	if (!__COMPAT_scx_bpf_reenqueue_local_from_anywhere())
-		scx_bpf_reenqueue_local();
+	u32 cnt;
+
+	/*
+	 * Called when @cpu is taken by a higher priority scheduling class. This
+	 * makes @cpu no longer available for executing sched_ext tasks. As we
+	 * don't want the tasks in @cpu's local dsq to sit there until @cpu
+	 * becomes available again, re-enqueue them into the global dsq. See
+	 * %SCX_ENQ_REENQ handling in qmap_enqueue().
+	 */
+	cnt = scx_bpf_reenqueue_local();
+	if (cnt)
+		__sync_fetch_and_add(&nr_reenqueued, cnt);
 }
 
 s32 BPF_STRUCT_OPS(qmap_init_task, struct task_struct *p,
@@ -866,16 +852,12 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(qmap_init)
 		print_cpus();
 
 	ret = scx_bpf_create_dsq(SHARED_DSQ, -1);
-	if (ret) {
-		scx_bpf_error("failed to create DSQ %d (%d)", SHARED_DSQ, ret);
+	if (ret)
 		return ret;
-	}
 
 	ret = scx_bpf_create_dsq(HIGHPRI_DSQ, -1);
-	if (ret) {
-		scx_bpf_error("failed to create DSQ %d (%d)", HIGHPRI_DSQ, ret);
+	if (ret)
 		return ret;
-	}
 
 	timer = bpf_map_lookup_elem(&monitor_timer, &key);
 	if (!timer)
