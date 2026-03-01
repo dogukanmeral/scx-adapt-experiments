@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Usage: %s <path_to_vmlinux.h>\n", os.Args[0])
+	if len(os.Args) != 2 {
+		fmt.Println("Specify path to vmlinux.h as only argument.")
 		os.Exit(1)
 	}
 

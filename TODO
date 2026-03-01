@@ -4,7 +4,7 @@
 
 [x] README file
 [x] More schedulers
-[ ] Fix problems of logging parts
+[x] Fix problems of logging parts
 [ ] More sample profiles using new schedulers
 [ ] New workload scenarios
 [ ] Server setup to run automated workload scenarios
