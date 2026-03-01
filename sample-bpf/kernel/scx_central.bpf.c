@@ -301,10 +301,8 @@ int BPF_STRUCT_OPS_SLEEPABLE(central_init)
 	int ret;
 
 	ret = scx_bpf_create_dsq(FALLBACK_DSQ_ID, -1);
-	if (ret) {
-		scx_bpf_error("scx_bpf_create_dsq failed (%d)", ret);
+	if (ret)
 		return ret;
-	}
 
 	timer = bpf_map_lookup_elem(&central_timer, &key);
 	if (!timer)

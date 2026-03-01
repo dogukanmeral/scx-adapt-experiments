@@ -1,2 +1,2 @@
-sample-bpf/vmlinux.h
 bytecode/*
+sample-bpf/include/scx/vmlinux.h

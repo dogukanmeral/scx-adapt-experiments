@@ -1,8 +1,6 @@
 SCHED_EXT EXAMPLE SCHEDULERS
 ============================
 
-Example schedulers from [Linux kernel repository on Github](https://github.com/torvalds/linux/tree/master/tools/sched_ext) (schedulers here may not be up-to-date with the kernel repository).
-
 # Introduction
 
 This directory contains a number of example sched_ext schedulers. These
@@ -67,6 +65,7 @@ It's also recommended that you also include the following Kconfig options:
 ```
 CONFIG_BPF_JIT_ALWAYS_ON=y
 CONFIG_BPF_JIT_DEFAULT_ON=y
+CONFIG_PAHOLE_HAS_SPLIT_BTF=y
 CONFIG_PAHOLE_HAS_BTF_TAG=y
 ```
 
