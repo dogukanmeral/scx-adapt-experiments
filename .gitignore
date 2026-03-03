@@ -1,2 +1,3 @@
 bytecode/*
 sample-bpf/include/scx/vmlinux.h
+sample-bpf/minimal-scheduler/vmlinux.h

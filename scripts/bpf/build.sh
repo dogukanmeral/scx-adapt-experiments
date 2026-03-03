@@ -9,5 +9,7 @@ if [ ! -f sample-bpf/include/scx/vmlinux.h ]; then
     bpftool btf dump file /sys/kernel/btf/vmlinux format c > sample-bpf/include/scx/vmlinux.h
 fi
 
+mkdir -p bytecode
+
 # Compile the scheduler
 clang -target bpf -g -O2 -c $BPF_FILE -o bytecode/${BASE_FILE}.o -Isample-bpf/include
