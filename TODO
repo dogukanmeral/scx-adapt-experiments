@@ -1,5 +1,11 @@
 # AI & ML
 
+[ ] Create a README.md for /ml subfolder
+[ ] Receive lottery or any kind of scheduler in CSV format and perform EDA
+[ ] Test current model and compare it to current schedulers
+[ ] Add nested-cross validation
+[ ] Improve target variable logic
+
 # System logging and scripts
 
 [x] README file
