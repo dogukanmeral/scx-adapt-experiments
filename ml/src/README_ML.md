@@ -16,5 +16,5 @@ Outputs percentiles and error rates which we will use in the scheduler_runtime.p
 pkl_converter.py :
 Outputs the tree structure in json format. Stored in ml/model/scheduler_tree.json.
 
-scheduler_runtime.py :
+scheduler_runtime.py : (ŞİMDİLİK IGNORELA TAM ÇALIŞMIYOR LOGIC OTURMADI)
 Additional file if json won't be enough. Uses percentiles to switch between schedulers.

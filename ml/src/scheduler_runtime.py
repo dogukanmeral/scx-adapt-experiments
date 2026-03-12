@@ -1,22 +1,41 @@
-def choose_scheduler(model, base_features):
+import json
+from pathlib import Path
 
-    # Copy features
-    rr_features = base_features.copy()
-    prio_features = base_features.copy()
+MODEL_FILE = Path(__file__).resolve().parent.parent / "models" / "scheduler_tree.json"
 
-    # Set scheduler flags
-    rr_features["scheduler_RR"] = 1
-    rr_features["scheduler_PRIORITY"] = 0
+with open(MODEL_FILE) as f:
+    model = json.load(f)
 
-    prio_features["scheduler_RR"] = 0
-    prio_features["scheduler_PRIORITY"] = 1
 
-    # Predict loads
-    load_rr = model.predict([rr_features])[0]
-    load_prio = model.predict([prio_features])[0]
+def predict_tree(model, features):
+    node = 0
 
-    # Choose scheduler that gives lower load
-    if load_rr < load_prio:
+    while model["feature"][node] != -2:
+        feature_index = model["feature"][node]
+        threshold = model["threshold"][node]
+
+        if features[feature_index] <= threshold:
+            node = model["children_left"][node]
+        else:
+            node = model["children_right"][node]
+
+    return model["value"][node]
+
+
+def choose_scheduler(predicted_load):
+
+    if predicted_load < -0.404:
+        # Percentile decided by lighter-load, switch to RR if load is lighter.
         return "RR"
+
     else:
         return "PRIO"
+
+# Runtime decision function
+def decide_scheduler(features):
+
+    predicted_load = predict_tree(model, features)
+
+    scheduler = choose_scheduler(predicted_load)
+
+    return scheduler
