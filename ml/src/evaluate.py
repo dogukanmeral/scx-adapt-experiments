@@ -1,6 +1,7 @@
 # Import libraries
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import joblib
 
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -48,6 +49,16 @@ def main():
 
     evaluate(model, X_val,  y_val,  label="Validation")
     evaluate(model, X_test, y_test, label="Test")
+
+    val_preds = model.predict(X_val)
+
+    print("Min load:", val_preds.min())
+    print("Max load:", val_preds.max())
+    print("Mean load:", val_preds.mean())
+
+    print("Percentiles:")
+    for p in [25, 50, 75, 90]:
+        print(p, "%:", np.percentile(val_preds, p))
 
 
 if __name__ == "__main__":
