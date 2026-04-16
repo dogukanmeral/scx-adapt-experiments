@@ -1,3 +1,3 @@
-bytecode/*
-sample-bpf/include/scx/vmlinux.h
+bytecode/*.o
 sample-bpf/minimal-scheduler/vmlinux.h
+.vscode/*
