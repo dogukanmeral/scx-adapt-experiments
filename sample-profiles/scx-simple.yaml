@@ -1,7 +1,0 @@
-interval: 1000
-schedulers:
-  - path: "/etc/scx-adapt/schedulers/scx_simple.bpf.c.o"
-    priority: 1
-    criterias:
-      - value_name: load_avg_1
-        more_than: 0
