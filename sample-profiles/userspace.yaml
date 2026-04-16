@@ -1,0 +1,8 @@
+interval: 1000
+schedulers:
+  - path: "bytecode/kernel-6.18-x86_64/scx_simple"
+    type: "userspace"
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        more_than: 2.5
