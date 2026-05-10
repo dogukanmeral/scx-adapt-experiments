@@ -13,7 +13,8 @@
 [x] More schedulers
 [x] Fix problems of logging parts
 [ ] More sample profiles using new schedulers
-[ ] New workload scenarios
-[x] Server setup to run automated workload scenarios
+[ ] New workload scenarios (time based) (should work on a vm, DITCH THE RENDERING)
+[ ] Server setup to run automated workload scenarios
 [x] Add bpftool, libbpf-dev (or devel) and clang requirements to README
 [x] Replace "kernel" samples with bytecode
+[x] Update sample profiles

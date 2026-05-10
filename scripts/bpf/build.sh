@@ -1,12 +1,13 @@
 #!/bin/sh
 BPF_FILE=$1
 BASE_FILE=$(basename ${BPF_FILE})
+VMLINUX_H_PATH="sample-bpf/minimal-scheduler/vmlinux.h"
 
 # Create the vmlinux header with all the eBPF Linux functions
 # if it doesn'r exist
-if [ ! -f sample-bpf/include/scx/vmlinux.h ]; then
+if [ ! -f $VMLINUX_H_PATH ]; then
     echo "Creating vmlinux.h"
-    bpftool btf dump file /sys/kernel/btf/vmlinux format c > sample-bpf/include/scx/vmlinux.h
+    bpftool btf dump file /sys/kernel/btf/vmlinux format c > $VMLINUX_H_PATH
 fi
 
 mkdir -p bytecode
