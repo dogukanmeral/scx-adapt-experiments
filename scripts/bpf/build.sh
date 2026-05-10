@@ -10,7 +10,7 @@ if [ ! -f $VMLINUX_H_PATH ]; then
     bpftool btf dump file /sys/kernel/btf/vmlinux format c > $VMLINUX_H_PATH
 fi
 
-mkdir -p bytecode
+mkdir -p compiled/kernelonly
 
 # Compile the scheduler
-clang -target bpf -g -O2 -c $BPF_FILE -o bytecode/${BASE_FILE}.o -Isample-bpf/include
+clang -target bpf -g -O2 -c $BPF_FILE -o compiled/kernelonly/${BASE_FILE}.o -Isample-bpf/include

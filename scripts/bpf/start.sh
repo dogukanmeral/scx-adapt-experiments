@@ -5,7 +5,7 @@ if [ "$1" = "--help" ]; then
     echo "Usage: ./start.sh scheduler_bytecode.o"
     # print all the available scheduler files in the directory
     echo "Available schedulers:"
-    ls -1 bytecode/*
+    ls -1 compiled/kernelonly/*
     exit 0
 fi
 
