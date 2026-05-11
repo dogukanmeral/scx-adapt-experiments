@@ -1,0 +1,14 @@
+interval: 1000
+schedulers:
+  - path: "fifo.bpf.c.o"
+    priority: 1
+    type: "kernelonly"
+    criterias:
+      - value_name: load_avg_1
+        less_than: 3
+  - path: "prio.bpf.c.o"
+    priority: 2
+    type: "kernelonly"
+    criterias:
+      - value_name: load_avg_1
+        more_than: 3

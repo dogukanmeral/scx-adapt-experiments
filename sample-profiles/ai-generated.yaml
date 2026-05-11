@@ -1,0 +1,50 @@
+interval: 1000
+schedulers:
+  - path: "prio.bpf.c.o"
+    type: "kernelonly"
+    priority: 2
+    criterias:
+      - value_name: cpu_psi_some_10
+        less_than: 21.615
+      - value_name: cpu_psi_some_300
+        more_than: 0.01
+        less_than: 15.115  
+      - value_name: load_avg_1
+        more_than: 5.265
+  - path: "fifo.bpf.c.o"
+    type: "kernelonly"
+    priority: 1
+    criterias:
+      - value_name: cpu_psi_some_10
+        more_than: 10.185
+        less_than: 21.615
+      - value_name: cpu_psi_some_300
+        more_than: 15.115
+      - value_name: load_avg_5
+        less_than: 12.595
+        
+  - path: "scx_flatcg"
+    type: "userspace"
+    log: true
+    priority: 3
+    criterias:
+      - value_name: cpu_psi_some_10
+        less_than: 21.615
+      - value_name: cpu_psi_some_300
+        less_than: 15.115
+      - value_name: io_psi_some_300
+        less_than: 0.045
+      - value_name: mem_psi_full_300
+        less_than: 0.09
+  - path: "scx_simple"
+    type: "userspace"
+    priority: 4
+    log: true
+    criterias:
+      - value_name: cpu_psi_some_10
+        more_than: 21.615
+        less_than: 24.97
+      - value_name: load_avg_1
+        more_than: 10.805
+      - value_name: cpu_psi_some_60
+        more_than: 19.35
