@@ -1,11 +1,8 @@
-# AI & ML
+# Documentation
 
-[ ] Create a README.md for /ml subfolder
-[ ] Receive lottery or any kind of scheduler in CSV format and perform EDA
-[ ] Test current model and compare it to current schedulers
-[ ] Add nested-cross validation
-[ ] Re-train model with a smaller forest
-[ ] Check if dimensionality reduction is suitable
+[ ] Fill 6.2 Test results the report
+[ ] Use data to fill Ch7 Evaluation of the report
+[ ] Consult Dogu on Ch8 and fill the table
 
 # System logging and scripts
 
