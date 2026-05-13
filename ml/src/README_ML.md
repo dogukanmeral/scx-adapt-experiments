@@ -10,6 +10,10 @@ Uses one hot encoder for categorical variables and scales numerical variables. M
 generate_profile.py :
 Trains a decision tree on combined telemetry data and exports scheduler selection rules as a YAML profile in sample-profiles/generated_tester.yaml.
 
+compiled_schedulers.yaml :
+Manual YAML profile based on README descriptions of compiled schedulers, mapping them to telemetry conditions without ML training.
+
+
 train.py :
 A training script that uses Random Forest Classifier to guess the minimum load_avg_1.
 

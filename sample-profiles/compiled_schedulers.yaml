@@ -1,0 +1,120 @@
+interval: 1000
+schedulers:
+  # Gaming schedulers - prioritize when load is high and CPU usage indicates active workloads
+  - path: "/etc/scx-adapt/schedulers/scx_cake"
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        more_than: 3.0
+      - value_name: cpu_psi_some_10
+        more_than: 20.0
+  - path: "/etc/scx-adapt/schedulers/scx_lavd"
+    priority: 2
+    criterias:
+      - value_name: load_avg_1
+        more_than: 2.5
+      - value_name: procs_running
+        more_than: 15
+  - path: "/etc/scx-adapt/schedulers/scx_bpfland"
+    priority: 3
+    criterias:
+      - value_name: load_avg_1
+        more_than: 2.0
+      - value_name: cpu_psi_some_60
+        more_than: 15.0
+
+  # Interactive workloads - moderate load with some CPU pressure
+  - path: "/etc/scx-adapt/schedulers/scx_rustland"
+    priority: 4
+    criterias:
+      - value_name: load_avg_1
+        more_than: 1.5
+        less_than: 4.0
+      - value_name: procs_running
+        more_than: 10
+
+  # General purpose - balanced conditions
+  - path: "/etc/scx-adapt/schedulers/scx_cosmos"
+    priority: 5
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0.5
+        less_than: 3.0
+  - path: "/etc/scx-adapt/schedulers/scx_p2dq"
+    priority: 6
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0.8
+        less_than: 2.5
+
+  # Server/cloud workloads - high process counts, moderate CPU usage
+  - path: "/etc/scx-adapt/schedulers/scx_tickless"
+    priority: 7
+    criterias:
+      - value_name: procs_running
+        more_than: 20
+      - value_name: load_avg_1
+        more_than: 1.0
+  - path: "/etc/scx-adapt/schedulers/scx_central"
+    priority: 8
+    criterias:
+      - value_name: procs_running
+        more_than: 25
+      - value_name: cpu_psi_some_300
+        less_than: 10.0
+
+  # Latency-sensitive workloads - low CPU pressure but responsive needs
+  - path: "/etc/scx-adapt/schedulers/scx_flash"
+    priority: 9
+    criterias:
+      - value_name: cpu_psi_some_10
+        less_than: 15.0
+      - value_name: io_psi_some_10
+        more_than: 1.0
+
+  # Cache-intensive workloads - high CPU cores, moderate load
+  - path: "/etc/scx-adapt/schedulers/scx_beerland"
+    priority: 10
+    criterias:
+      - value_name: cpu_cores
+        more_than: 8
+      - value_name: load_avg_1
+        more_than: 1.2
+
+  # Flexible/configurable schedulers - fallback options
+  - path: "/etc/scx-adapt/schedulers/scx_rusty"
+    priority: 11
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0.1
+  - path: "/etc/scx-adapt/schedulers/scx_layered"
+    priority: 12
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0.1
+  - path: "/etc/scx-adapt/schedulers/scx_mitosis"
+    priority: 13
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0.1
+
+  # Simple/example schedulers - low priority fallbacks
+  - path: "/etc/scx-adapt/schedulers/scx_simple"
+    priority: 14
+    criterias:
+      - value_name: cpu_cores
+        less_than: 16
+      - value_name: load_avg_1
+        less_than: 2.0
+  - path: "/etc/scx-adapt/schedulers/scx_qmap"
+    priority: 15
+    criterias:
+      - value_name: load_avg_1
+        less_than: 1.5
+  - path: "/etc/scx-adapt/schedulers/scx_flatcg"
+    priority: 16
+    criterias:
+      - value_name: cpu_cores
+        less_than: 16
+      - value_name: load_avg_1
+        less_than: 2.0
