@@ -11,8 +11,21 @@
 [x] More schedulers
 [x] Fix problems of logging parts
 [ ] More sample profiles using new schedulers
-[ ] New workload scenarios (time based) (should work on a vm, DITCH THE RENDERING)
-[ ] Server setup to run automated workload scenarios
+[ ] Bash script to benchmark each scheduler in an automated fashion
+[ ] New benchmarks (DITCH THE RENDERING)
+[ ] Homelab setup to run automated benchmarks
+[ ] Update: Samples due to changes in `scx-adapt` config structure
 [x] Add bpftool, libbpf-dev (or devel) and clang requirements to README
 [x] Replace "kernel" samples with bytecode
 [x] Update sample profiles
+
+# Research
+
+[X] `struct_ops` and BPF architecture
+[X] Benchmarking tools (`sysbench`, `fio`, `hackbench`, `cyclictest`)
+[X] Short and simple descriptions of schedulers use cases 
+[ ] How scheduler policies are implemented in Linux kernel?
+[X] `sched_ext` articles
+[ ] EEVDF and CFS
+[ ] History of schedulers
+[ ] What "CachyOS" did about sched_ext?
