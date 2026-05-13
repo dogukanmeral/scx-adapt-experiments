@@ -1,3 +1,9 @@
+# Rust schedulers
+
+Contains schedulers with user space Rust components.
+<https://github.com/sched-ext/scx/tree/main/scheds/rust>
+
+
 # scx_beerland
 
 ## Overview
