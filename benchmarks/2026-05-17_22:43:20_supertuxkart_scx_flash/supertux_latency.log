@@ -1,0 +1,17 @@
+
+ -------------------------------------------------------------------------------------------------------------------------------------------
+  Task                  |   Runtime ms  |  Count   | Avg delay ms    | Max delay ms    | Max delay start           | Max delay end          |
+ -------------------------------------------------------------------------------------------------------------------------------------------
+  supertux:gdrv0:(2)    |   1466.031 ms |     4674 | avg:   0.326 ms | max:   0.995 ms | max start: 18929.608459 s | max end: 18929.609455 s
+  supertuxka:sh5:89027  |      1.385 ms |       19 | avg:   0.232 ms | max:   0.704 ms | max start: 18892.811741 s | max end: 18892.812445 s
+  supertuxka:sh7:89031  |      1.142 ms |       17 | avg:   0.220 ms | max:   0.984 ms | max start: 18892.808457 s | max end: 18892.809441 s
+  supertuxka:gl0:(2)    |   1471.011 ms |     5182 | avg:   0.216 ms | max:   1.003 ms | max start: 18918.953446 s | max end: 18918.954449 s
+  supertuxka:sh1:89023  |      2.030 ms |       25 | avg:   0.175 ms | max:   0.783 ms | max start: 18891.823663 s | max end: 18891.824446 s
+  supertuxka:sh4:89026  |      1.215 ms |       21 | avg:   0.169 ms | max:   0.515 ms | max start: 18893.755937 s | max end: 18893.756452 s
+  supertuxka:sh3:89025  |      2.007 ms |       22 | avg:   0.155 ms | max:   0.607 ms | max start: 18891.824850 s | max end: 18891.825457 s
+  supertuxka:sh2:89024  |      1.861 ms |       24 | avg:   0.152 ms | max:   0.551 ms | max start: 18891.822904 s | max end: 18891.823455 s
+  supertuxka:sh8:89032  |      1.442 ms |       19 | avg:   0.148 ms | max:   0.556 ms | max start: 18892.788892 s | max end: 18892.789447 s
+  supertuxka:cs0:88996  |   1244.960 ms |     3723 | avg:   0.145 ms | max:   1.007 ms | max start: 18893.478448 s | max end: 18893.479456 s
+  supertuxka:sh0:88998  |      3.582 ms |       31 | avg:   0.116 ms | max:   0.729 ms | max start: 18891.820734 s | max end: 18891.821463 s
+  supertuxka:sh6:89028  |      1.530 ms |       22 | avg:   0.109 ms | max:   0.507 ms | max start: 18939.983947 s | max end: 18939.984454 s
+  supertuxkart:88961    |  19747.757 ms |    23270 | avg:   0.098 ms | max:   2.992 ms | max start: 18896.146458 s | max end: 18896.149450 s

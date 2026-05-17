@@ -1,0 +1,12 @@
+[2m2026-05-17T19:45:26.537203Z[0m [32m INFO[0m ThreadId(01) [2mscx_mitosis[0m[2m:[0m [2mscheds/rust/scx_mitosis/src/main.rs[0m[2m:[0m[2m340:[0m Running scx_mitosis (build ID: 1.1.0 x86_64-unknown-linux-gnu)
+[2m2026-05-17T19:45:26.630932Z[0m [32m INFO[0m ThreadId(01) [2mscx_utils::libbpf_logger[0m[2m:[0m [2mrust/scx_utils/src/libbpf_logger.rs[0m[2m:[0m[2m11:[0m libbpf: struct_ops mitosis: member sub_attach not found in kernel, skipping it as it's set to zero
+
+[2m2026-05-17T19:45:26.630970Z[0m [32m INFO[0m ThreadId(01) [2mscx_utils::libbpf_logger[0m[2m:[0m [2mrust/scx_utils/src/libbpf_logger.rs[0m[2m:[0m[2m11:[0m libbpf: struct_ops mitosis: member sub_detach not found in kernel, skipping it as it's set to zero
+
+[2m2026-05-17T19:45:26.630983Z[0m [32m INFO[0m ThreadId(01) [2mscx_utils::libbpf_logger[0m[2m:[0m [2mrust/scx_utils/src/libbpf_logger.rs[0m[2m:[0m[2m11:[0m libbpf: struct_ops mitosis: member sub_cgroup_id not found in kernel, skipping it as it's set to zero
+
+[2m2026-05-17T19:45:26.832967Z[0m [33m WARN[0m ThreadId(01) [2mscx_utils::libbpf_logger[0m[2m:[0m [2mrust/scx_utils/src/libbpf_logger.rs[0m[2m:[0m[2m12:[0m libbpf: map 'mitosis': BPF map skeleton link is uninitialized
+
+[2m2026-05-17T19:45:26.859658Z[0m [32m INFO[0m ThreadId(01) [2mscx_mitosis[0m[2m:[0m [2mscheds/rust/scx_mitosis/src/main.rs[0m[2m:[0m[2m497:[0m Mitosis Scheduler Attached. Run `scx_mitosis --monitor` for metrics.
+[2m2026-05-17T19:46:46.560879Z[0m [32m INFO[0m ThreadId(01) [2mscx_mitosis[0m[2m:[0m [2mscheds/rust/scx_mitosis/src/main.rs[0m[2m:[0m[2m574:[0m Unregister scx_mitosis scheduler
+EXIT: unregistered from user space
