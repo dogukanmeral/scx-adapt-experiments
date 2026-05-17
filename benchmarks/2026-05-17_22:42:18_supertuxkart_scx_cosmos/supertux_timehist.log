@@ -1,0 +1,7 @@
+Runtime summary
+                          comm  parent   sched-in     run-time    min-run     avg-run     max-run  stddev  migrations
+                                          (count)       (msec)     (msec)      (msec)      (msec)       %
+---------------------------------------------------------------------------------------------------------------------
+                supertuxka:sh2      -1          1        0.073      0.073       0.073       0.073    0.00       0
+   supertuxka:sh3[88330/88252]      -1          1        0.050      0.050       0.050       0.050    0.00       0
+           supertuxkart[88252]      -1          8       38.460      0.022       4.807      16.984   38.79       0

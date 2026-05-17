@@ -1,0 +1,11 @@
+22:43:20 [0m[34m[INFO] [0mscx_flash 1.1.0 x86_64-unknown-linux-gnu SMT on
+22:43:20 [0m[34m[INFO] [0mscheduler options: compiled/scx-rust/scx_flash
+22:43:20 [0m[34m[INFO] [0mSetting idle QoS to 32 us
+22:43:20 [0m[34m[INFO] [0mNUMA nodes: 1
+22:43:20 [0m[34m[INFO] [0mDisabling NUMA optimizations
+22:43:20 [0m[34m[INFO] [0mscheduler flags: 0x36
+22:43:20 [0m[34m[INFO] [0mprimary CPU domain = 0xfff
+22:43:20 [0m[34m[INFO] [0mcpufreq performance level: max
+22:43:20 [0m[34m[INFO] [0mSMT sibling CPUs: [1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10]
+EXIT: unregistered from user space
+22:44:15 [0m[34m[INFO] [0mUnregister scx_flash scheduler

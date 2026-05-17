@@ -1,0 +1,5 @@
+Runtime summary
+                          comm  parent   sched-in     run-time    min-run     avg-run     max-run  stddev  migrations
+                                          (count)       (msec)     (msec)      (msec)      (msec)       %
+---------------------------------------------------------------------------------------------------------------------
+           supertuxkart[87245]      -1         11       42.022      0.050       3.820      10.972   27.77       0
