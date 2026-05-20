@@ -1,3 +1,4 @@
 compiled/kernelonly/*
 sample-bpf/minimal-scheduler/vmlinux.h
 .vscode/*
+benchmarks/README.md
