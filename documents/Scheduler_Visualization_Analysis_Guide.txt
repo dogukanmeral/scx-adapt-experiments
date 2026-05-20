@@ -1,0 +1,45 @@
+# Scheduler SuperTux Performance Report - Quick Start & Analysis Guide
+
+This guide breaks down the purpose of each visualization in the performance dashboard, how to interpret the metrics, and what they reveal about Linux extensibility schedulers (`sched_ext`).
+
+---
+
+## Quick Rules of Thumb
+**Latency & Unpredictability Metrics:** LOWER IS BETTER. (You want zero scheduling delays and rock-solid consistency).
+**FPS & Stability Metrics:** HIGHER IS BETTER. (You want more frames per second and higher minimum frame floors).
+
+---
+
+## Detailed Breakdown of Visualizations
+
+### 1. Average Frame Latency (ms) & Peak Frame Latency (ms)
+* **What it measures:** * `Average Latency` tracks the baseline scheduling delay introduced over the entire benchmark run.
+    * `Peak Latency` tracks the single absolute worst-case scheduling delay (the longest individual frame stall).
+* **How to read it:** Look for schedulers that minimize both bars. A low average means nothing if the peak latency spike is massive.
+* **Engineering Impact:** High peak latency correlates directly with an engine "hiccup" or a highly visible freeze during gameplay.
+
+### 2. 99th Percentile Framerate Stability (1% Lows)
+* **What it measures:** The average frame rate of the slowest 1% of all recorded frames.
+* **How to read it:** A taller bar means a significantly smoother gaming experience. 
+* **Engineering Impact:** This is the ultimate benchmark for "fluidity." Schedulers with high average FPS but low 1% Lows will feel stuttery and choppy to the player.
+
+### 3. FPS Distribution Profile (Typical vs. Steady)
+* **What it measures:** Splits the performance profile into two crucial realities:
+    * `Typical FPS:` What the scheduler delivers under normal, average operating conditions.
+    * `Steady FPS:` The reliable performance baseline when the engine is under heavy load.
+* **How to read it:** Compare the drop-off from Typical to Steady. Schedulers like `flash` maintain a tall, rigid bar in both, proving they hold their ground under pressure. Schedulers whose `Steady FPS` crashes to the floor fail under heavy multi-threaded loads.
+
+### 4. Task Unpredictability Score (Standard Deviation %)
+* **What it measures:** The coefficient of variation (`stddev_pct`) for task run times. It determines how erratic the scheduler behaves when handing out CPU time slices.
+* **How to read it:** Shorter bars are better. Schedulers positioned lower or with smaller bars provide highly uniform, predictable CPU cycles.
+* **Engineering Impact:** High unpredictability means the game engine cannot guarantee steady frame pacing, resulting in fluctuating performance even if the average frame rate looks high.
+
+### 5. The Workload Stability Matrix
+* **What it measures:** A side-by-side grouped bar chart contrasting `Average Run Time (ms)` against `Maximum Run Time (ms)` for the core scheduling tasks.
+* **How to read it:** Look for balanced pairs. Schedulers where the dark blue maximum bar shoots wildly above the light blue average bar are prone to bottlenecking specific threads.
+* **Engineering Impact:** Isolates exactly which scheduler handles thread execution budgets cleanly without allowing tasks to overstay or get starved on a core.
+
+### 6. Specific Task Latency Heatmap
+* **What it measures:** A diagnostic matrix breaking down average latency across individual game tasks (`supertux`, `supertuxka`, `supertuxkart`).
+* **How to read it:** Green cells mean flawless, responsive execution. Red cells isolate a direct compatibility issue or severe bottleneck.
+* **Engineering Impact:** For example, a bright red cell on `mitosis` for the core `supertux` task explicitly proves that this specific scheduler struggles to handle this workload profile efficiently, causing an engine-wide performance degradation.
