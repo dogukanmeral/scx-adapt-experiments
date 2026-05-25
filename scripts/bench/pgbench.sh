@@ -1,22 +1,32 @@
 #!/bin/bash
-# https://supertuxkart.net/Performance_testing
-
-# TODO: Add scheduler health-check
+# https://www.postgresql.org/docs/current/pgbench.html 
 
 set -e
 
-BENCHMARK_NAME='supertuxkart'
-RESULTS_DIR='benchmarks'
+BENCHMARK_NAME='pgbench'
+RESULTS_DIR="benchmarks"
+
+PGBENCH_DB='pgbench_db'
+PGBENCH_SCALE=100
+PGBENCH_CLIENT=15
+PGBENCH_JOBS=8
+PGBENCH_TRANSACTIONS=3000
 
 cleanup () {
-    echo 0 > /sys/devices/system/cpu/cpufreq/boost    
+    echo 0 > /sys/devices/system/cpu/cpufreq/boost
+    sudo -u postgres psql --command "DROP DATABASE $PGBENCH_DB"
 }
 
 echo 1 > /sys/devices/system/cpu/cpufreq/boost
 cpupower frequency-set -g performance > /dev/null
 
+if ! sudo -u postgres psql -lqt | grep $PGBENCH_DB; then
+    sudo -u postgres psql --command "CREATE DATABASE $PGBENCH_DB"
+fi
+
 if [ -e "/sys/kernel/sched_ext/root/ops" ]; then
     printf "sched_ext is already active: %s\n" $(cat /sys/kernel/sched_ext/root/ops)
+    cleanup
     exit 1
 fi
 
@@ -33,7 +43,7 @@ do
         "$SCHED_PATH" 1>"$LOGDIR"/"$SCHED_NAME".log 2>&1 &
     else
         printf "Scheduler not found at %s\n" "$SCHED_PATH"
-        echo 0 > /sys/devices/system/cpu/cpufreq/boost
+        cleanup
         exit 1
     fi
 
@@ -48,22 +58,25 @@ do
     
     printf "Scheduler attached: %s\n" "$SCHED_NAME"
 
-    stress --cpu 12 > /dev/null 2>&1 & # Start CPU stress
+    sudo -u postgres pgbench --initialize --scale="$PGBENCH_SCALE" "$PGBENCH_DB"
 
-    perf sched record -o "$LOGDIR"/perf.data supertuxkart --benchmark | grep "Profiler" >> "$LOGDIR"/"$BENCHMARK_NAME"_out.log || \
+    perf sched record -o "$LOGDIR"/perf.data \
+        sudo -u postgres pgbench \
+        --client="$PGBENCH_CLIENT" \
+        --jobs="$PGBENCH_JOBS" \
+        --transactions="$PGBENCH_TRANSACTIONS" \
+        "$PGBENCH_DB" >> "$LOGDIR"/"$BENCHMARK_NAME"_out.log || \
         printf "Error: Scheduling performance recording %s\n" "$SCHED_NAME"
-
-    killall stress # Stop CPU stress
 
     killall $SCHED_NAME || { printf "Error: Stopping scheduler %s\n" "$SCHED_NAME" ; exit 1; }
 
     lscpu > "$LOGDIR"/cpuinfo
     
     perf sched latency -i "$LOGDIR"/perf.data | head -n 4 >> "$LOGDIR"/"$BENCHMARK_NAME"_latency.log
-    perf sched latency -i "$LOGDIR"/perf.data | grep "supertux" >> "$LOGDIR"/"$BENCHMARK_NAME"_latency.log
+    perf sched latency -i "$LOGDIR"/perf.data | grep "postgres" >> "$LOGDIR"/"$BENCHMARK_NAME"_latency.log
 
     perf sched timehist --with-summary -i "$LOGDIR"/perf.data | awk '/Runtime summary/{found=1} found' | head -n 4 >> "$LOGDIR"/"$BENCHMARK_NAME"_timehist.log
-    perf sched timehist --with-summary -i "$LOGDIR"/perf.data | awk '/Runtime summary/{found=1} found' | grep "supertux" >> "$LOGDIR"/"$BENCHMARK_NAME"_timehist.log
+    perf sched timehist --with-summary -i "$LOGDIR"/perf.data | awk '/Runtime summary/{found=1} found' | grep "postgres" >> "$LOGDIR"/"$BENCHMARK_NAME"_timehist.log
 
     perf sched latency -i "$LOGDIR"/perf.data >> "$LOGDIR"/all_latency.log
     perf sched timehist --with-summary -i "$LOGDIR"/perf.data | awk '/Runtime summary/{found=1} found' >> "$LOGDIR"/all_timehist.log
