@@ -1,7 +1,7 @@
 interval: 1000
 schedulers:
   - path: "scx_central"
-    type: "userspace"
+    loader: "builtin"
     log: true
     parameters:
       - '-s=50'
