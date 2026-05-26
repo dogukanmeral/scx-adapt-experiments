@@ -21,6 +21,8 @@ benchmark_prep() {
 }
 
 benchmark_func() {
+    entity_name_finder
+
     sudo -u postgres pgbench --initialize --scale="$PGBENCH_SCALE" "$PGBENCH_DB"
 
     perf sched record -o "$LOGDIR"/perf.data \
@@ -29,5 +31,5 @@ benchmark_func() {
         --jobs="$PGBENCH_JOBS" \
         --transactions="$PGBENCH_TRANSACTIONS" \
         "$PGBENCH_DB" >> "$LOGDIR"/"$BENCHMARK_NAME"_out.log || \
-        printf "Error: Scheduling performance recording %s\n" "$SCHED_NAME"
+        printf "Error: Scheduling performance recording %s\n" "$ENTITY_NAME"
 }   

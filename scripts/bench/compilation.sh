@@ -20,10 +20,12 @@ benchmark_prep() {
 }
 
 benchmark_func() {
-    COMPILE_DIR=cloned/"$SCHED_NAME"_"$REPO_NAME"
+    entity_name_finder
+
+    COMPILE_DIR=cloned/"$ENTITY_NAME"_"$REPO_NAME"
     git clone cloned/"$REPO_NAME" "$COMPILE_DIR"
  
     perf sched record -o "$LOGDIR"/perf.data \
         make --directory "$COMPILE_DIR" -j"$MAKE_THREADS" >> "$LOGDIR"/"$BENCHMARK_NAME"_out.log || \
-        printf "Error: Scheduling performance recording %s\n" "$SCHED_NAME"
+        printf "Error: Scheduling performance recording %s\n" "$ENTITY_NAME"
 }
