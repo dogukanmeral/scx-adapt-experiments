@@ -1,0 +1,117 @@
+# scx-adapt server / database profile
+# Target: AMD Ryzen 5 5500U — 6 cores / 12 threads (SMT), single NUMA node
+#
+# Benchmark — pgbench TPC-B (15 clients, 8 threads, scale=100):
+#   scx_beerland  3054.9 TPS | 4.910 ms avg lat  ← WINNER (best locality)
+#   scx_rustland  3001.8 TPS | 4.997 ms           (close second)
+#   scx_rusty     2985.6 TPS | 5.024 ms           (multi-domain, flexible)
+#   scx_flash     2907.0 TPS | 5.160 ms
+#   scx_cosmos    2818.2 TPS | 5.322 ms
+#   scx_lavd      2550.3 TPS | 5.882 ms           ← poor
+#   scx_bpfland   2513.9 TPS | 5.967 ms           ← poor (max delay 3.97 ms)
+#   scx_mitosis   2446.7 TPS | 6.131 ms           ← worst
+#
+# Key insight: scx_beerland's per-CPU deadline-ordered DSQs keep Postgres
+# worker threads on the same CPUs as their shared-buffer cache lines.
+# Migrations only happen at saturation — exactly what a connection pool
+# with 15 clients on 12 CPUs needs.
+#
+# Metric thresholds — 12 logical CPUs:
+#   load_avg_1/5/15 : 1-min spike vs. 5-min/15-min sustained trend
+#   cpu_psi_some_10 : % where ≥1 task was CPU-stalled (DB busy: 15–50%)
+#   cpu_psi_some_60 : smoothed CPU pressure (detects sustained DB load)
+#   cpu_psi_full_60 : ALL tasks stalled — true overcommit; usually 0 for DB
+#   io_psi_some_10  : % where ≥1 task was IO-stalled (DB reads/writes: 20–60%)
+#   io_psi_full_10  : ALL tasks IO-stalled (heavy fsync / checkpoint phases)
+#   mem_psi_some_10 : % where ≥1 task was mem-stalled (rises if shared_buffers
+#                     is undersized and Postgres is paging heavily)
+#   procs_running   : runnable threads; 15 clients → up to 15+ during bursts
+#   procs_blocked   : threads waiting on IO/locks; rises during checkpoint
+#   procs_disk_io   : threads doing disk IO; spikes on WAL flush, autovacuum
+
+interval: 1000  # DB load shifts gradually; 1 s interval is sufficient
+
+schedulers:
+
+  # ── Priority 1 ── scx_beerland ──────────────────────────────────────────
+  # Clear winner for DB workloads (+21% TPS over scx_bpfland).
+  # Activate when there is genuine DB activity:
+  #   • sustained CPU stall pressure (workers competing for CPUs)
+  #   • some IO stall (typical Postgres shared-buffer access pattern)
+  #   • multiple threads runnable (connection pool active)
+  #   • moderate disk IO activity (WAL writes, autovacuum, checkpoints)
+  # The 60-second smoothed CPU PSI avoids thrashing on short-lived spikes
+  # (e.g. a single expensive query that finishes in < 10 s).
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 1
+    criterias:
+      - value_name: load_avg_5
+        more_than: 2
+      - value_name: cpu_psi_some_60
+        more_than: 10
+      - value_name: io_psi_some_10
+        more_than: 5
+      - value_name: procs_running
+        more_than: 3
+      - value_name: procs_disk_io
+        more_than: 1
+
+  # ── Priority 2 ── scx_rustland ──────────────────────────────────────────
+  # Second-best for server (3001 TPS). User-space vruntime policy handles
+  # short-running query bursts and OLTP patterns well.
+  # Activate during light/idle DB periods (monitoring queries, idle pool):
+  #   • load is low over the past 5 minutes (no sustained workload)
+  #   • CPU stall pressure is minimal (tasks get CPUs quickly)
+  #   • few threads blocked on IO (no heavy checkpoint / WAL flush in progress)
+  #   • minimal memory pressure (shared_buffers fully cached)
+  - path: "scx_rustland"
+    loader: builtin
+    log: false
+    priority: 2
+    criterias:
+      - value_name: load_avg_5
+        less_than: 4
+      - value_name: cpu_psi_some_10
+        less_than: 20
+      - value_name: procs_blocked
+        less_than: 3
+      - value_name: mem_psi_some_10
+        less_than: 15
+      - value_name: io_psi_some_60
+        less_than: 20
+
+  # ── Priority 3 ── scx_rusty ─────────────────────────────────────────────
+  # Multi-domain load-balancer (2985 TPS). BPF does round-robin per domain;
+  # Rust user-space rebalances based on domain load factors.
+  # Good catch-all for mixed/irregular DB patterns (e.g. OLAP queries + OLTP
+  # traffic, autovacuum spikes, logical replication lag recovery):
+  #   • non-trivial sustained load (15-min trend above idle)
+  #   • full-CPU stall is absent (not overcommitted — rusty handles balance,
+  #     not starvation recovery)
+  #   • some disk IO present (typical background DB activity)
+  - path: "scx_rusty"
+    loader: builtin
+    log: false
+    priority: 3
+    criterias:
+      - value_name: load_avg_15
+        more_than: 1
+      - value_name: cpu_psi_full_60
+        less_than: 10
+      - value_name: procs_disk_io
+        more_than: 0
+      - value_name: procs_running
+        more_than: 1
+
+  # ── Priority 4 ── scx_beerland (catch-all) ──────────────────────────────
+  # If none of the above match (e.g. fresh boot, idle system, zero clients),
+  # fall back to scx_beerland since it is the best DB scheduler overall.
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 4
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0
