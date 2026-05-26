@@ -1,0 +1,307 @@
+# scx-adapt workload-adaptive profile
+# Target: AMD Ryzen 5 5500U — 6 cores / 12 threads (SMT), single NUMA node
+#
+# This is the core purpose of scx-adapt: detect the current workload TYPE
+# from system metrics and attach the scheduler that the benchmarks show
+# performs best for that specific type — without any manual intervention.
+#
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │  Workload type          │ Best scheduler  │ Evidence                     │
+# ├──────────────────────────────────────────────────────────────────────────┤
+# │ Idle / pure interactive │ scx_flash       │ 58 FPS / 0.098 ms avg delay  │
+# │ Interactive + CPU bg    │ scx_bpfland     │ interactive queue separation  │
+# │ CPU-heavy batch         │ scx_beerland    │ cc: 0.030 ms / ld: 0.026 ms  │
+# │ DB / mixed CPU+IO       │ scx_beerland    │ 3054 TPS / 4.910 ms lat      │
+# │ Pure IO-heavy           │ scx_cosmos      │ adaptive local→shared DSQ    │
+# │ Moderate mixed desktop  │ scx_cosmos      │ top-2 in gaming AND compile  │
+# │ Saturated / catch-all   │ scx_beerland    │ most consistent throughput    │
+# └──────────────────────────────────────────────────────────────────────────┘
+#
+# How workload types are distinguished via metrics (12 logical CPUs):
+#
+#   load_avg_1/5/15   — 1/5/15-min load; saturation ≈ 12
+#   cpu_psi_some_10   — % of last 10 s where ≥1 task was CPU-stalled
+#                       idle: < 10 | light: 10–20 | moderate: 20–40 | heavy: > 40
+#   cpu_psi_some_60   — 60-s smoothed CPU stall (less noisy than _10)
+#   cpu_psi_full_10   — % where ALL tasks were CPU-stalled (true overcommit)
+#                       good interactive: < 5 | CPU batch: 5–25 | saturated: > 25
+#   io_psi_some_10    — % where ≥1 task was IO-stalled
+#                       idle: < 5 | light IO: 5–15 | DB: 15–50 | IO-heavy: > 50
+#   io_psi_some_60    — 60-s smoothed IO stall
+#   io_psi_full_10    — ALL tasks IO-stalled (pure IO bottleneck signal)
+#   mem_psi_some_10   — % where ≥1 task was mem-stalled
+#                       normal: < 10 | memory pressure: 10–30 | swap thrash: > 30
+#   mem_psi_some_60   — 60-s smoothed memory pressure
+#   procs_running     — threads in runnable state right now
+#                       idle: < 4 | light: 4–7 | parallel batch: > 7
+#   procs_blocked     — threads sleeping on IO or locks
+#                       idle: < 2 | DB/IO activity: 2–8 | IO-heavy: > 8
+#   procs_disk_io     — threads actively performing disk IO
+#                       idle: < 2 | moderate: 2–5 | IO-heavy: > 5
+#
+# Criteria within a scheduler entry are evaluated as AND (all must be true).
+# scx-adapt iterates priorities in order and attaches the first match.
+
+interval: 750   # 750 ms: responsive to transient load spikes without oscillating
+
+schedulers:
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 1 — IDLE / PURE INTERACTIVE
+  # Workload: desktop browsing, video playback, light coding, music
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_flash
+  #   EDF with dynamic latency weights. Tasks that release the CPU early
+  #   (audio thread, compositor, input handler) earn a higher latency weight
+  #   and get an earlier deadline → scheduled first. Benchmark result: lowest
+  #   main-thread dispatch delay (0.098 ms) and highest steady FPS (40) in
+  #   the SuperTuxKart test.
+  #
+  # Detection: ALL signals must confirm a calm, low-contention environment.
+  #   load_avg_1 < 3      → load well below 25% of CPU capacity (12 cores)
+  #   cpu_psi_some_10 < 15 → tasks almost never wait for a CPU slot
+  #   cpu_psi_full_10 < 2  → no true scheduling overcommit at all
+  #   io_psi_some_10 < 10  → not in an IO-heavy phase (no large file ops)
+  #   mem_psi_some_10 < 5  → no memory pressure / no swap activity
+  #   procs_running < 5    → few competing runnable threads
+  #   procs_blocked < 2    → almost nothing sleeping on IO or locks
+  - path: "scx_flash"
+    loader: builtin
+    log: false
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        less_than: 3
+      - value_name: cpu_psi_some_10
+        less_than: 15
+      - value_name: cpu_psi_full_10
+        less_than: 2
+      - value_name: io_psi_some_10
+        less_than: 10
+      - value_name: mem_psi_some_10
+        less_than: 5
+      - value_name: procs_running
+        less_than: 5
+      - value_name: procs_blocked
+        less_than: 2
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 2 — INTERACTIVE TASKS COMPETING WITH CPU-HEAVY BACKGROUND
+  # Workload: gaming + system update, IDE + background compilation,
+  #           browser + video transcoding, desktop + ML inference
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_bpfland
+  #   Classifies every task as interactive (high voluntary ctx-switch/s) or
+  #   regular (CPU hog). Interactive tasks go into a separate high-priority
+  #   vruntime queue. Each task's time-slice budget carries over across
+  #   dispatches, so latency-sensitive tasks can burst without preemption.
+  #   Benchmark: 56 typical FPS in SuperTuxKart — keeps the game responsive
+  #   even as background tasks saturate the remaining cores.
+  #
+  # Detection: CPU contention is present, but NOT at total saturation,
+  #            and IO is not the dominant bottleneck.
+  #   cpu_psi_some_10 > 15 → real CPU competition (background work is active)
+  #   cpu_psi_full_10 < 20 → not ALL tasks stalled; interactive ones still run
+  #   io_psi_some_10 < 25  → CPU is the bottleneck, not disk IO
+  #   load_avg_1 < 10      → not at full saturation; room for prioritisation
+  #   procs_running > 2    → background workers are actually consuming CPUs
+  #   procs_blocked < 5    → workers are CPU-bound, not primarily IO-blocked
+  - path: "scx_bpfland"
+    loader: builtin
+    log: false
+    priority: 2
+    criterias:
+      - value_name: cpu_psi_some_10
+        more_than: 15
+      - value_name: cpu_psi_full_10
+        less_than: 20
+      - value_name: io_psi_some_10
+        less_than: 25
+      - value_name: load_avg_1
+        less_than: 10
+      - value_name: procs_running
+        more_than: 2
+      - value_name: procs_blocked
+        less_than: 5
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 3 — CPU-HEAVY PARALLEL BATCH
+  # Workload: make -jN, Rust/C++ compilation, ML training, video encoding,
+  #           scientific computing, package builds
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_beerland
+  #   Separate per-CPU deadline-ordered DSQs. Each compiler process is kept
+  #   on its own CPU (cache stays hot). Migrations only happen when a CPU
+  #   runs out of local work — and then the task with the smallest deadline
+  #   (longest-waiting) is pulled from a remote DSQ. This exactly matches
+  #   how make -jN schedules: many short-lived cc processes, each owning one
+  #   TU and its header cache.
+  #   Benchmark: wins git compile — cc avg 0.030 ms, ld avg 0.026 ms.
+  #
+  # Detection: high SUSTAINED CPU load with many parallel workers, where
+  #            IO is secondary to CPU as the limiting resource.
+  #   load_avg_5 > 5       → sustained load above ~42% (not a 10-s spike)
+  #   cpu_psi_some_10 > 35 → heavy CPU stall pressure (workers queuing for CPUs)
+  #   cpu_psi_full_10 > 3  → true overcommit: even with N tasks for N CPUs,
+  #                          some slots are temporarily unavailable
+  #   procs_running > 6    → ≥7 parallel workers (make -jN with N ≥ 7)
+  #   io_psi_some_10 < 40  → CPU is the bottleneck; IO not yet the limiter
+  #   procs_blocked < 6    → workers are CPU-bound, not stuck waiting on disk
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 3
+    criterias:
+      - value_name: load_avg_5
+        more_than: 5
+      - value_name: cpu_psi_some_10
+        more_than: 35
+      - value_name: cpu_psi_full_10
+        more_than: 3
+      - value_name: procs_running
+        more_than: 6
+      - value_name: io_psi_some_10
+        less_than: 40
+      - value_name: procs_blocked
+        less_than: 6
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 4 — DATABASE / MIXED CPU+IO
+  # Workload: PostgreSQL/MySQL OLTP, Redis, application server with DB,
+  #           mixed read-write workloads, WAL-heavy writes
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_beerland
+  #   Same per-CPU DSQ design, but here the benefit is that Postgres worker
+  #   processes stay on the same CPU as their shared-buffer pages. When a
+  #   worker stalls on a WAL write and then wakes up, it returns to its own
+  #   CPU DSQ — keeping shared-buffer cache hot.
+  #   Benchmark: wins pgbench TPC-B — 3054 TPS (+21% over scx_bpfland),
+  #   4.910 ms average latency (best of all tested schedulers).
+  #
+  # Detection: BOTH CPU and IO stall are elevated, with active disk IO —
+  #            the mixed fingerprint of a database under realistic load.
+  #   load_avg_5 > 2       → sustained activity (not idle/maintenance mode)
+  #   cpu_psi_some_10 > 10 → CPU competition among DB worker threads
+  #   io_psi_some_10 > 12  → IO stall also present (WAL, shared-buffer misses)
+  #   procs_disk_io > 2    → active disk IO threads (WAL writer, bgwriter)
+  #   procs_running > 3    → connection pool workers actively executing
+  #   procs_blocked > 1    → some IO/lock waits (normal for OLTP)
+  #   mem_psi_some_60 < 30 → shared_buffers fit in RAM; not swap-thrashing
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 4
+    criterias:
+      - value_name: load_avg_5
+        more_than: 2
+      - value_name: cpu_psi_some_10
+        more_than: 10
+      - value_name: io_psi_some_10
+        more_than: 12
+      - value_name: procs_disk_io
+        more_than: 2
+      - value_name: procs_running
+        more_than: 3
+      - value_name: procs_blocked
+        more_than: 1
+      - value_name: mem_psi_some_60
+        less_than: 30
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 5 — PURE IO-HEAVY (CPU IS NOT THE BOTTLENECK)
+  # Workload: large file copy, rsync, tar/zstd archive, package install,
+  #           database backup/restore, btrfs balance, RAID rebuild
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_cosmos
+  #   Under IO saturation, scx_cosmos switches to a shared deadline-DSQ.
+  #   When an IO-blocked task finally wakes up (disk read completes), it is
+  #   dispatched with an early deadline and can migrate to ANY idle CPU —
+  #   it doesn't need to wait for its "home" CPU to become free.
+  #   This is critical when most threads are blocked on disk: the few CPUs
+  #   that are free must be shared fairly across many just-woken threads.
+  #
+  # Detection: IO stall dominates, many threads are blocked, disk is active,
+  #            but CPU is NOT the limiting resource.
+  #   io_psi_some_10 > 30  → significant IO stall (IO is the bottleneck)
+  #   io_psi_full_10 > 3   → true IO saturation: even all tasks are IO-stalled
+  #   procs_blocked > 4    → many threads sleeping on disk reads/writes
+  #   procs_disk_io > 4    → active high-throughput disk IO threads
+  #   cpu_psi_some_10 < 30 → CPU is NOT the bottleneck (tasks get CPUs fast)
+  #   mem_psi_some_10 < 20 → not swapping (swap IO would confuse the pattern)
+  - path: "scx_cosmos"
+    loader: builtin
+    log: false
+    priority: 5
+    criterias:
+      - value_name: io_psi_some_10
+        more_than: 30
+      - value_name: io_psi_full_10
+        more_than: 3
+      - value_name: procs_blocked
+        more_than: 4
+      - value_name: procs_disk_io
+        more_than: 4
+      - value_name: cpu_psi_some_10
+        less_than: 30
+      - value_name: mem_psi_some_10
+        less_than: 20
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 6 — MODERATE MIXED DESKTOP
+  # Workload: everything in between — browser + Slack + terminal + Docker,
+  #           light development, moderate VM, background system tasks
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_cosmos
+  #   The best all-rounder across all three benchmarks: top-2 in gaming
+  #   (58 typical FPS, ld 0.024 ms in compile). Automatically adapts
+  #   between per-CPU local DSQs (non-saturated → preserves locality) and
+  #   shared deadline-DSQ (saturated → allows migration). No manual tuning.
+  #
+  # Detection: moderate sustained load without a dominant bottleneck —
+  #            none of the above specific workload profiles matched.
+  #   load_avg_5 > 0       → some activity present (not absolute idle)
+  #   load_avg_5 < 8       → not in heavy-throughput territory
+  #   cpu_psi_some_60 < 45 → 60-s CPU pressure not oppressive (no batch storm)
+  #   cpu_psi_full_10 < 15 → no true sustained overcommit
+  #   io_psi_some_60 < 30  → 60-s IO pressure moderate (no IO storm)
+  #   mem_psi_some_60 < 15 → memory stable over the last minute
+  #   procs_blocked < 6    → IO/lock waits manageable
+  - path: "scx_cosmos"
+    loader: builtin
+    log: false
+    priority: 6
+    criterias:
+      - value_name: load_avg_5
+        more_than: 0
+        less_than: 8
+      - value_name: cpu_psi_some_60
+        less_than: 45
+      - value_name: cpu_psi_full_10
+        less_than: 15
+      - value_name: io_psi_some_60
+        less_than: 30
+      - value_name: mem_psi_some_60
+        less_than: 15
+      - value_name: procs_blocked
+        less_than: 6
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PRIORITY 7 — SATURATED / OVERLOADED / CATCH-ALL
+  # Workload: anything that did not match a profile above — full saturation,
+  #           OOM-adjacent, extreme mixed load, system startup storms,
+  #           memory pressure from swap, unknown workload pattern
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Scheduler: scx_beerland
+  #   The most consistent performer across all three benchmarks: wins both
+  #   the compile (cc 0.030 ms) and pgbench (3054 TPS) tests outright, and
+  #   places 4th in gaming (54 FPS / 0.134 ms) — still solid. Under full
+  #   saturation its deadline-ordered DSQs ensure no task starves while
+  #   preserving locality for tasks that have been running longest.
+  #   Always matches via load_avg_1 > 0.
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 7
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0
