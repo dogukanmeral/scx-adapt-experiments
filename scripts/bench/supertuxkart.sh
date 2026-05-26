@@ -9,10 +9,12 @@ benchmark_prep() {
 }
 
 benchmark_func() {
+    entity_name_finder
+
     stress --cpu 12 > /dev/null 2>&1 & # Start CPU stress
 
     perf sched record -o "$LOGDIR"/perf.data supertuxkart --benchmark | grep "Profiler" >> "$LOGDIR"/"$BENCHMARK_NAME"_out.log || \
-        printf "Error: Scheduling performance recording %s\n" "$SCHED_NAME"
+        printf "Error: Scheduling performance recording %s\n" "$ENTITY_NAME"
 
     killall stress # Stop CPU stress
 }
