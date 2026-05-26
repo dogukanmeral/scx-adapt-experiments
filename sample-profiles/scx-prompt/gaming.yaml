@@ -1,0 +1,110 @@
+# scx-adapt gaming profile
+# Target: AMD Ryzen 5 5500U — 6 cores / 12 threads (SMT), single NUMA node
+#
+# Benchmark — SuperTuxKart (Typical FPS | main-thread avg dispatch delay):
+#   scx_flash    58 FPS | 0.098 ms  ← WINNER (lowest delay, highest steady FPS=40)
+#   scx_cosmos   58 FPS | 0.136 ms  (same typical FPS, slightly higher delay)
+#   scx_bpfland  56 FPS | 0.140 ms  (interactive/background separation)
+#   scx_beerland 54 FPS | 0.134 ms  (solid fallback; wins server/compile)
+#   scx_lavd     28 FPS | 0.940 ms  ← poor despite "gaming" marketing
+#   scx_rusty    31 FPS | 1.152 ms  ← poor (high max delays up to ~21 ms)
+#   scx_mitosis  13 FPS | 1.518 ms  ← terrible (avg gdrv0 delay: 10.9 ms!)
+#
+# Metric thresholds — 12 logical CPUs:
+#   load_avg_1        : saturation ≈ 12; gaming typically sits at 3–7
+#   load_avg_5        : smoothed; detects sustained load vs. short spikes
+#   cpu_psi_some_10   : % of last 10 s where ≥1 task was CPU-stalled
+#                       ~10–35% during light gaming; ~40–70% under heavy bg load
+#   cpu_psi_full_10   : % where ALL tasks were CPU-stalled (true contention)
+#                       should stay < 5% for good interactive perf
+#   io_psi_some_10    : % where ≥1 task was IO-stalled; spikes during asset loads
+#   mem_psi_some_10   : % where ≥1 task was mem-stalled; rises if GPU/game OOMs
+#   procs_running     : runnable threads; gaming usually has < 8 at once
+#   procs_blocked     : threads sleeping on IO; low for in-RAM gaming workloads
+#   procs_disk_io     : threads doing disk IO; spikes on level/asset loads
+
+interval: 500   # react quickly (500 ms) to load spikes during gameplay
+
+schedulers:
+
+  # ── Priority 1 ── scx_flash ─────────────────────────────────────────────
+  # Best gaming scheduler: EDF + dynamic latency weights give the lowest
+  # main-thread dispatch delay (0.098 ms) and highest steady FPS (40).
+  # Activate when the system is in a "comfortable gaming zone":
+  #   • load is light-to-moderate (not yet competing hard for CPUs)
+  #   • CPU-stall pressure is low (tasks aren't waiting long for the CPU)
+  #   • no significant full-CPU stall (no true scheduling overcommit)
+  #   • memory is not pressured (no OOM-adjacent swapping)
+  #   • few runnable threads (game threads get CPUs almost immediately)
+  - path: "scx_flash"
+    loader: builtin
+    log: false
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        less_than: 7
+      - value_name: cpu_psi_some_10
+        less_than: 40
+      - value_name: cpu_psi_full_10
+        less_than: 5
+      - value_name: mem_psi_some_10
+        less_than: 15
+      - value_name: procs_running
+        less_than: 9
+
+  # ── Priority 2 ── scx_cosmos ────────────────────────────────────────────
+  # Second-best gaming scheduler (same 58 typical FPS as scx_flash).
+  # Self-adapts: uses per-CPU local DSQs when not saturated (preserving
+  # locality) and switches to shared deadline-DSQ under saturation (boosting
+  # interactive task migration). Good when load is moderate but PSI is not
+  # yet alarming and IO is not a bottleneck.
+  - path: "scx_cosmos"
+    loader: builtin
+    log: false
+    priority: 2
+    criterias:
+      - value_name: load_avg_5
+        less_than: 9
+      - value_name: cpu_psi_some_60
+        less_than: 60
+      - value_name: cpu_psi_full_10
+        less_than: 15
+      - value_name: io_psi_some_10
+        less_than: 25
+      - value_name: mem_psi_some_60
+        less_than: 20
+
+  # ── Priority 3 ── scx_bpfland ───────────────────────────────────────────
+  # Explicitly classifies tasks as interactive (high voluntary ctx-switch
+  # rate) vs. regular (CPU hog) and puts them in separate vruntime queues.
+  # Best choice when heavy background work (e.g. a shader compile, update
+  # manager, browser JS) is visibly competing with the game:
+  #   • significant CPU stall pressure (tasks fighting for CPUs)
+  #   • non-trivial number of runnable threads
+  #   • but NOT extreme IO pressure (scx_bpfland is CPU-interactivity focused)
+  - path: "scx_bpfland"
+    loader: builtin
+    log: false
+    priority: 3
+    criterias:
+      - value_name: load_avg_1
+        more_than: 5
+      - value_name: cpu_psi_some_10
+        more_than: 30
+      - value_name: procs_running
+        more_than: 5
+      - value_name: io_psi_some_10
+        less_than: 50
+
+  # ── Priority 4 ── scx_beerland ──────────────────────────────────────────
+  # Catch-all fallback. Per-CPU deadline DSQs give decent gaming performance
+  # (54 typical FPS) and are the best choice for any scenario not caught
+  # above (e.g. extreme IO pressure during asset streaming, near-OOM, or
+  # system startup bursts). Always matches via load_avg_1 > 0.
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 4
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0

@@ -1,0 +1,130 @@
+# scx-adapt compilation / build profile
+# Target: AMD Ryzen 5 5500U — 6 cores / 12 threads (SMT), single NUMA node
+#
+# Benchmark — git source compilation (cc + ld average dispatch delay):
+#   scx_beerland  cc: 0.030 ms | ld: 0.026 ms  ← WINNER (best on both)
+#   scx_cosmos    cc: 0.036 ms | ld: 0.024 ms  (near-identical; best ld)
+#   scx_rustland  cc: 0.036 ms | ld: 0.061 ms  (good cc, mediocre ld)
+#   scx_bpfland   cc: 0.039 ms | ld: 0.041 ms
+#   scx_mitosis   cc: 0.040 ms | ld: 0.032 ms
+#   scx_flash     cc: 0.067 ms | ld: 0.129 ms  ← poor (EDF overhead for batch)
+#   scx_lavd      cc: 0.118 ms | ld: 0.070 ms  ← poor
+#   scx_rusty     cc: 0.126 ms | ld: 0.023 ms  ← poor cc (domain rebalance cost)
+#
+# Compilation is a CPU-bound parallel batch workload (make -jN).
+# Cache locality is critical: each `cc` process compiles one TU and exits,
+# so keeping it on the same CPU preserves L2/L3 hits for headers/PCH.
+# `ld` is single-threaded but reads many object files → benefits from
+# sequential CPU affinity too. Both schedulers that win here (scx_beerland,
+# scx_cosmos) implement per-CPU local DSQs for exactly this reason.
+#
+# Metric thresholds — 12 logical CPUs (make -j12 target):
+#   load_avg_1/5  : 1-min spike vs. 5-min sustained; build starts at ~10 s
+#   cpu_psi_some_10 : % where ≥1 task was CPU-stalled; parallel build: 30–70%
+#   cpu_psi_some_300: 5-min smoothed CPU pressure (long builds)
+#   cpu_psi_full_10 : ALL tasks stalled (overcommit); should stay low with -j12
+#   io_psi_some_10  : % where ≥1 task was IO-stalled; ~10–35% (reading src)
+#   io_psi_full_10  : ALL tasks IO-stalled; spikes during ld's read phase
+#   mem_psi_some_10 : % where ≥1 task was mem-stalled; rises if tmpfs/RAM full
+#   procs_running   : spawned cc processes; make -j12 → 8–14 at peak
+#   procs_blocked   : tasks sleeping on IO (disk reads of header files)
+#   procs_disk_io   : threads actively doing disk IO (src reads, obj writes)
+
+interval: 1000  # build load ramps slowly; 1 s interval is appropriate
+
+schedulers:
+
+  # ── Priority 1 ── scx_beerland ──────────────────────────────────────────
+  # Wins both cc and ld latency metrics. Per-CPU deadline DSQs keep each
+  # compiler process pinned to its cache. Migrations only occur under
+  # saturation — and when they do, the task with the smallest deadline
+  # (i.e. the longest-waiting cc) is pulled, which is exactly right.
+  # Activate during heavy parallel build phases:
+  #   • high sustained load (5-min avg above half the CPU count)
+  #   • strong CPU stall pressure (many cc processes competing)
+  #   • meaningful IO stall (reading header files, writing object files)
+  #   • many processes actively running (make -jN fully cranked)
+  #   • some disk IO (objfile writes, tmpfs / sccache access)
+  #   • NOT all processes stalled on IO (pure IO wait → cosmos handles better)
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 1
+    criterias:
+      - value_name: load_avg_5
+        more_than: 5
+      - value_name: cpu_psi_some_10
+        more_than: 25
+      - value_name: io_psi_some_10
+        more_than: 5
+      - value_name: io_psi_full_10
+        less_than: 20
+      - value_name: procs_running
+        more_than: 5
+      - value_name: procs_disk_io
+        more_than: 2
+
+  # ── Priority 2 ── scx_cosmos ────────────────────────────────────────────
+  # Virtually tied with scx_beerland on ld (0.024 ms, even slightly better).
+  # Its automatic adaptation (local DSQ → shared deadline-DSQ at saturation)
+  # is valuable during the middle phases of a build where load fluctuates
+  # (unity builds, LTO link, PCH generation).
+  # Activate for moderate sustained build load:
+  #   • 5-min load average is non-trivial but not yet peaked
+  #   • 5-min CPU pressure confirms sustained (not one-shot) CPU use
+  #   • not too many processes blocked on IO (link phase is usually sequential)
+  #   • memory is not the bottleneck
+  - path: "scx_cosmos"
+    loader: builtin
+    log: false
+    priority: 2
+    criterias:
+      - value_name: load_avg_5
+        more_than: 2
+      - value_name: cpu_psi_some_300
+        more_than: 15
+      - value_name: cpu_psi_full_10
+        less_than: 15
+      - value_name: procs_blocked
+        less_than: 6
+      - value_name: mem_psi_some_10
+        less_than: 20
+      - value_name: procs_running
+        more_than: 2
+
+  # ── Priority 3 ── scx_bpfland ───────────────────────────────────────────
+  # Decent for compilation (cc: 0.039 ms) and useful when a build runs
+  # alongside an interactive session (IDE, browser, terminal). Its
+  # interactive/regular task separation prevents the compiler from
+  # starving UI threads during a background build.
+  # Activate for light-to-moderate build with interactive co-tenants:
+  #   • some CPU stall pressure (background build is active)
+  #   • but CPU is not fully saturated (there's room for interactive tasks)
+  #   • minimal disk IO full-stall (interactive tasks must stay responsive)
+  - path: "scx_bpfland"
+    loader: builtin
+    log: false
+    priority: 3
+    criterias:
+      - value_name: load_avg_1
+        more_than: 1
+      - value_name: cpu_psi_some_10
+        more_than: 10
+      - value_name: cpu_psi_full_10
+        less_than: 10
+      - value_name: io_psi_full_10
+        less_than: 10
+      - value_name: procs_disk_io
+        less_than: 8
+
+  # ── Priority 4 ── scx_rustland (catch-all) ──────────────────────────────
+  # Good third choice for compilation (cc: 0.036 ms). Covers cases that
+  # don't match the above: early build startup (configure, cmake generation),
+  # ccache-heavy builds (almost no disk IO), or single-threaded compilation.
+  - path: "scx_rustland"
+    loader: builtin
+    log: false
+    priority: 4
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0

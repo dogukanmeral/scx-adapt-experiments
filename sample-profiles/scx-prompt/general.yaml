@@ -1,0 +1,150 @@
+# scx-adapt general-purpose adaptive profile
+# Target: AMD Ryzen 5 5500U — 6 cores / 12 threads (SMT), single NUMA node
+#
+# Cross-benchmark summary (lower dispatch delay = better; higher FPS/TPS = better):
+#
+#   Scheduler    Gaming (FPS/delay)   pgbench (TPS)   Compile (cc delay)
+#   scx_flash    58 FPS / 0.098 ms    2907            0.067 ms
+#   scx_cosmos   58 FPS / 0.136 ms    2818            0.036 ms
+#   scx_bpfland  56 FPS / 0.140 ms    2513            0.039 ms
+#   scx_beerland 54 FPS / 0.134 ms    3054 ✓          0.030 ms ✓
+#   scx_rustland 56 FPS / 0.211 ms    3001            0.036 ms
+#   scx_rusty    31 FPS / 1.152 ms    2985            0.126 ms
+#   scx_lavd     28 FPS / 0.940 ms    2550            0.118 ms
+#   scx_mitosis  13 FPS / 1.518 ms    2446            0.040 ms
+#
+# Strategy — scheduler selected by characterising the current workload type:
+#
+#   scx_flash    → idle / light desktop: low load, no PSI pressure, few runnables
+#   scx_cosmos   → mixed desktop / moderate workload: adapts local↔shared DSQ
+#   scx_bpfland  → interactive under CPU pressure: background tasks threatening latency
+#   scx_beerland → heavy throughput workload: near-saturation, batch, DB, compile
+#
+# Full metric catalogue used — 12 logical CPUs:
+#   load_avg_1/5/15    : 1-min/5-min/15-min smoothed load (saturation ≈ 12)
+#   cpu_psi_some_10/60 : % time ≥1 task CPU-stalled (10 s reactive / 60 s trend)
+#   cpu_psi_full_10/60 : % time ALL tasks CPU-stalled (true overcommit signal)
+#   io_psi_some_10     : % time ≥1 task IO-stalled (disk reads/writes active)
+#   io_psi_full_10     : % time ALL tasks IO-stalled (IO bottleneck signal)
+#   io_psi_some_300    : 5-min IO stall trend (sustained IO-bound workload)
+#   mem_psi_some_10    : % time ≥1 task mem-stalled (OOM-adjacent / swap activity)
+#   mem_psi_some_300   : 5-min memory pressure trend
+#   procs_running      : runnable threads right now
+#   procs_blocked      : threads sleeping on IO / locks
+#   procs_disk_io      : threads actively performing disk IO
+
+interval: 1000
+
+schedulers:
+
+  # ── Priority 1 ── scx_flash ─────────────────────────────────────────────
+  # Best for interactive / gaming: lowest main-thread dispatch delay (0.098 ms),
+  # highest steady gaming FPS (40). EDF with dynamic latency weights gives
+  # latency-sensitive tasks (audio, rendering, input) the earliest deadline.
+  # Activate only when the system is genuinely lightly loaded — all signals
+  # must confirm a calm, interactive-friendly environment:
+  #   • 1-min load well below half the CPU count
+  #   • minimal short-term CPU stall (tasks almost never wait for the CPU)
+  #   • no full-CPU stall at all (nothing is overcommitting)
+  #   • no IO pressure (not a disk-bound moment)
+  #   • memory pressure absent (no swapping)
+  #   • few runnable threads (each gets a CPU essentially instantly)
+  #   • few disk-active threads (not in the middle of a large IO phase)
+  - path: "scx_flash"
+    loader: builtin
+    log: false
+    priority: 1
+    criterias:
+      - value_name: load_avg_1
+        less_than: 3
+      - value_name: cpu_psi_some_10
+        less_than: 15
+      - value_name: cpu_psi_full_10
+        less_than: 2
+      - value_name: io_psi_some_10
+        less_than: 10
+      - value_name: mem_psi_some_10
+        less_than: 5
+      - value_name: procs_running
+        less_than: 5
+      - value_name: procs_disk_io
+        less_than: 3
+
+  # ── Priority 2 ── scx_cosmos ────────────────────────────────────────────
+  # Best all-rounder: top-2 in gaming (58 FPS), top-2 in compilation (ld:
+  # 0.024 ms), acceptable for DB (2818 TPS). Automatically transitions
+  # between per-CPU local DSQ (non-saturated → locality) and shared
+  # deadline-DSQ (saturated → migration) using a built-in saturation signal.
+  # Activate for the typical desktop "medium load" zone:
+  #   • 1-min load moderate but not yet heavy
+  #   • 60-s CPU stall is meaningful but not oppressive
+  #   • no true full-CPU overcommit over 60 s (adaptive mode handles this)
+  #   • IO stall is not a sustained bottleneck (not purely IO-bound)
+  #   • memory stable over the last 5 min (no growing pressure)
+  #   • blocking threads present but manageable
+  - path: "scx_cosmos"
+    loader: builtin
+    log: false
+    priority: 2
+    criterias:
+      - value_name: load_avg_1
+        less_than: 7
+      - value_name: cpu_psi_some_60
+        less_than: 55
+      - value_name: cpu_psi_full_60
+        less_than: 10
+      - value_name: io_psi_some_300
+        less_than: 35
+      - value_name: mem_psi_some_300
+        less_than: 15
+      - value_name: procs_blocked
+        less_than: 5
+
+  # ── Priority 3 ── scx_bpfland ───────────────────────────────────────────
+  # Explicitly separates interactive tasks (high voluntary ctx-switch rate,
+  # e.g. audio server, compositor, browser main thread) from CPU hogs
+  # (compiler, codec, ML inference) in separate vruntime queues.
+  # This is the right choice when the machine is under significant CPU
+  # pressure but must still serve interactive tasks acceptably — e.g.
+  # browsing while a background compile runs, or video playback + transcoding.
+  # Activate when:
+  #   • CPU stall is elevated enough to threaten interactive latency
+  #   • there are several runnable threads competing
+  #   • but we're not yet at full saturation (some room left for prioritisation)
+  #   • IO stall is NOT the dominant bottleneck (bpfland optimises CPU, not IO)
+  #   • no sustained memory crisis (not spending all time on reclaim)
+  - path: "scx_bpfland"
+    loader: builtin
+    log: false
+    priority: 3
+    criterias:
+      - value_name: load_avg_1
+        less_than: 11
+      - value_name: cpu_psi_some_10
+        more_than: 25
+      - value_name: cpu_psi_full_10
+        less_than: 20
+      - value_name: procs_running
+        more_than: 4
+      - value_name: io_psi_full_10
+        less_than: 15
+      - value_name: mem_psi_some_60
+        less_than: 25
+
+  # ── Priority 4 ── scx_beerland (catch-all) ──────────────────────────────
+  # Best throughput scheduler: wins pgbench (3054 TPS) and git compile
+  # (cc: 0.030 ms). Per-CPU deadline DSQs maximise cache locality; task
+  # migrations only happen under saturation (pulling the smallest-deadline
+  # task from a remote DSQ). Catches everything not matched above:
+  #   • near-saturation batch workloads (make -j12, ffmpeg, ML training)
+  #   • heavy DB load (pgbench-style mixed read/write)
+  #   • system startup bursts, package manager runs
+  #   • extreme IO or memory pressure phases where other schedulers stepped aside
+  #   • the edge case where load_avg_1 ≥ 11 (full saturation)
+  - path: "scx_beerland"
+    loader: builtin
+    log: false
+    priority: 4
+    criterias:
+      - value_name: load_avg_1
+        more_than: 0
