@@ -10,6 +10,10 @@ PGBENCH_CLIENT=15
 PGBENCH_JOBS=8
 PGBENCH_TRANSACTIONS=3000
 
+benchmark_warmup() {
+    :
+}
+
 benchmark_cleanup() {
     sudo -u postgres psql --command "DROP DATABASE $PGBENCH_DB"
 }

@@ -201,6 +201,7 @@ bench_run_scx-adapt() {
 
         printf "scx-adapt configuration attached: %s\n" "$CONFIG_NAME"
 
+        benchmark_warmup
         benchmark_func
 
         killall "scx-adapt" || { printf "Error: Stopping scx-adapt configuration %s\n" "$CONFIG_PATH" ; runner_cleanup; exit 1; }

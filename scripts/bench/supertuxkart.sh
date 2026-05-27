@@ -3,6 +3,17 @@
 
 BENCHMARK_NAME='supertuxkart'
 PROCESS_EXP='supertuxkart'
+WARMUP_ITER=5
+
+benchmark_warmup() {
+    stress --cpu 12 > /dev/null 2>&1 & # Start CPU stress
+
+    for ((i=0; i<WARMUP_ITER; i++)); do
+        supertuxkart --benchmark > "/dev/null"
+    done
+
+    killall stress # Stop CPU stress
+}
 
 benchmark_prep() {
     :
