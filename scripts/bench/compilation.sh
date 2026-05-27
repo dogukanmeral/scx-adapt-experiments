@@ -7,6 +7,19 @@ GIT_REPO_URL='https://github.com/git/git'
 REPO_NAME=git
 MAKE_THREADS=8
 
+WARMUP_ITER=4
+
+benchmark_warmup() {
+    COMPILE_DIR="cloned/temp_warmup"
+    
+    for ((i=0; i<WARMUP_ITER; i++)); do
+        git clone cloned/"$REPO_NAME" "$COMPILE_DIR"
+        make --directory "$COMPILE_DIR" -j"$MAKE_THREADS" > "/dev/null" 2>&1
+        rm -rf "$COMPILE_DIR"
+    done
+
+}
+
 benchmark_cleanup() {
     rm -rf cloned
 }
