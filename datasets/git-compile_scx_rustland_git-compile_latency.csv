@@ -1,4 +1,0 @@
-Task,Runtime_ms,Count,Avg_delay_ms,Max_delay_ms,Max_delay_start,Max_delay_end
-ld:(22),5970.781 ms,64,avg:   0.061 ms,max:   0.309 ms,max start: 96519.221468 s,max end: 96519.221778 s
-cc:(578),2794.788 ms,2883,avg:   0.036 ms,max:   3.352 ms,max start: 96521.264876 s,max end: 96521.268228 s
-ln:(148),160.796 ms,155,avg:   0.013 ms,max:   0.058 ms,max start: 96518.338573 s,max end: 96518.338631 s

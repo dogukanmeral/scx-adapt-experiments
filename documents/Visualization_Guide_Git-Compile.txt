@@ -1,0 +1,46 @@
+# Scheduler Git-Compile Performance Report - Quick Start & Analysis Guide
+
+This guide breaks down the purpose of each visualization in the Git-Compile benchmark dashboard, how to interpret the metrics, and what they reveal about Linux extensibility schedulers (`sched_ext`) running heavy development workloads.
+
+---
+
+## Quick Rules of Thumb
+***Time, Overhead, & Latency Metrics:** LOWER IS BETTER. (You want shorter compile windows, minimal queue delays, and fewer core thrashing spikes).
+***Throughput & Consistency Metrics:** HIGHER IS BETTER. (You want higher process runtime distributions and stable processing blocks).
+
+---
+
+## Detailed Breakdown of Visualizations
+
+### 1. Build Time By Scheduler
+* **What it measures:** The absolute total wall-clock duration required by each scheduler to complete the exact same multi-threaded compilation job.
+* **How to read it:** Shorter bars mean a faster, more optimized compilation pipeline. This is the primary speed metric.
+* **Engineering Impact:** A shorter build time directly proves the scheduler's ability to maximize multi-core hardware scaling during relentless compiler fork/execute operations.
+
+### 2. Average Scheduling Delay By Task Type (cc / ld / ln)
+* **What it measures:** The time a thread spends waiting in the ready queue before the scheduler moves it onto an execution core, broken down by toolchain stage:
+    * `cc:` Compiler core processes (heavy compute, massive multi-threading).
+    * `ld:` Heavy linking processes (I/O and memory bound).
+    * `ln:` File linking/handling tasks (short lived operations).
+* **How to read it:** Smaller blocks across all three task types show a highly responsive scheduler. Spikes in specific bars isolate structural bottlenecks.
+* **Engineering Impact:** High ready-queue delays in `cc` tasks mean the scheduler is failing to load-balance thousands of rapid compiler processes efficiently.
+
+### 3. Worst-Case Latency
+* **What it measures:** The single longest individual delay experienced by any compiler thread waiting for CPU core allocation.
+* **How to read it:** Lower bars mean fewer thread starvation issues.
+* **Engineering Impact:** Massive spikes here reveal that specific compiler processes are getting starved or trapped in thread queues, holding up the final linking step.
+
+### 4. Task Runtime Distribution
+* **What it measures:** The average amount of uninterrupted processor execution time granted to threads across the workload.
+* **How to read it:** Evaluates whether a scheduler allows large, continuous execution windows or forces frequent micro-interruptions.
+* **Engineering Impact:** Larger blocks mean processes stay context-mapped to CPU caches longer, improving total cache localization efficiency.
+
+### 5. Context-Switching Overhead (Context Switches)
+* **What it measures:** The total frequency at which active processing threads are swapped in and out of the CPU execution cores over the duration of the build.
+* **How to read it:** Shorter bars mean the scheduler is letting compiler threads run efficiently with minimal interruptions.
+* **Engineering Impact:** Every context switch forces the CPU to clear its registers and invalidate local L1/L2 hardware caches. Schedulers with excessively tall bars are "thrashing" the threads, wasting precious clock cycles on pipeline overhead rather than active compilation.
+
+### 6. Scheduling Consistency
+* **What it measures:** The stability and predictability of task dispatch frequencies, calculating how wildly queue wait-times deviate from the norm.
+* **How to read it:** Shorter bars are highly desirable. They represent a steady, deterministic scheduling cadence.
+* **Engineering Impact:** Erratic consistency values prove the scheduler is cycling between extreme over-utilization and temporary process starvation, breaking pipeline smoothness.

@@ -1,2 +1,0 @@
-Task,Runtime_ms,Count,Avg_delay_ms,Max_delay_ms,Max_delay_start,Max_delay_end
-postgres:(21),36958.678 ms,473316,avg:   0.022 ms,max:   1.207 ms,max start: 96086.447220 s,max end: 96086.448426 s
