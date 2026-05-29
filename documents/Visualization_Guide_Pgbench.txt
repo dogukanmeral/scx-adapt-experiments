@@ -1,0 +1,43 @@
+# Scheduler pgbench Performance Report - Quick Start & Analysis Guide
+
+This guide breaks down the purpose of each visualization in the performance dashboard, how to interpret the metrics, and what they reveal about Linux extensibility schedulers (`sched_ext`) under a PostgreSQL (pgbench) database workload.
+
+---
+
+## Quick Rules of Thumb
+**Latency, Runtime & Unpredictability Metrics:** LOWER IS BETTER. (You want zero scheduling delays, minimal CPU runtime, and rock-solid consistency.)
+**Throughput & Stability Metrics:** HIGHER IS BETTER. (You want more scheduling events handled cleanly and more balanced task execution.)
+
+---
+
+## Detailed Breakdown of Visualizations
+
+### 1. Total CPU Runtime (ms)
+* **What it measures:** The total CPU time consumed by the postgres workload under each scheduler, drawn from `Runtime_ms` in the latency file.
+* **How to read it:** A shorter bar means the scheduler allowed postgres to complete its work faster. This is the headline throughput metric — the first number to check when comparing schedulers.
+* **Engineering Impact:** A scheduler with high runtime overhead is burning CPU cycles on scheduling decisions rather than letting the database engine execute queries. This directly translates to lower transactions-per-second in production.
+
+### 2. Average Scheduling Delay (ms)
+* **What it measures:** The mean scheduling delay experienced by the postgres process across all scheduling events, drawn from `Avg_delay_ms` in the latency file.
+* **How to read it:** Look for the shortest bar. This represents the typical latency tax imposed by the scheduler on every query dispatch cycle.
+* **Engineering Impact:** Average delay is the baseline responsiveness indicator. Even a few extra microseconds per event, multiplied across hundreds of thousands of scheduling events, compounds into measurable query latency degradation under steady-state database load.
+
+### 3. Peak Scheduling Delay (ms)
+* **What it measures:** The single absolute worst-case scheduling delay recorded during the entire benchmark run, drawn from `Max_delay_ms` in the latency file.
+* **How to read it:** A low average means nothing if the peak latency spike is massive. Look for schedulers that keep both bars (average and peak) low together.
+* **Engineering Impact:** Peak delay maps directly to query timeout risk and P99/P999 latency in production. A large spike here means the scheduler occasionally stalls a postgres worker entirely, causing visible query hangs or connection timeouts for end users.
+
+### 4. Task Unpredictability Score (Standard Deviation %)
+* **What it measures:** The coefficient of variation (`stddev`) of per-process run times, showing how erratically each scheduler distributes CPU time slices across postgres worker processes. Drawn from the `stddev` column in the timehist file.
+* **How to read it:** Shorter bars and tighter distributions are better. A large spread means some workers receive wildly inconsistent CPU allocations from one scheduling cycle to the next.
+* **Engineering Impact:** High unpredictability causes uneven query execution times even when the average looks acceptable. Connection handlers that get short-changed on CPU time introduce queueing delays, while over-scheduled workers waste time on completed work — both outcomes degrade overall database throughput.
+
+### 5. Workload Stability Matrix (Avg vs. Max Run Time)
+* **What it measures:** A side-by-side grouped bar chart contrasting `avg-run` (average per-slice run time in ms) against `max-run` (longest single run slice in ms) across postgres worker processes, drawn from the timehist file.
+* **How to read it:** Look for balanced pairs. Schedulers where the max-run bar shoots wildly above the avg-run bar are allowing individual postgres workers to monopolize a CPU core, starving other concurrent connections.
+* **Engineering Impact:** Isolates exactly which scheduler handles thread execution budgets cleanly. A well-tuned scheduler keeps max-run within a reasonable multiple of avg-run. Extreme outliers here point to a preemption failure — the scheduler is not interrupting long-running tasks promptly enough for a multi-connection database workload.
+
+### 6. Scheduler Efficiency (Sum of sched-in)
+* **What it measures:** A horizontal bar chart tracking the total frequency at which active processing threads are swapped in and out of CPU execution cores (Sum of sched-in) for each scheduler over the entire build duration.
+* **How to read it:** Shorter bars are highly desirable and represent a clean, efficient pipeline. Schedulers sorted at the top with the smallest bars are managing the workload with the least amount of mechanical interruption.
+* **Engineering Impact:** Every context switch forces the processor to clear registers and invalidate local L1/L2 hardware caches, burning clock cycles on purely administrative overhead. Schedulers with excessively long bars are "thrashing" the threads—interrupting the compiler core (cc) processes too frequently and bottlenecking overall pipeline throughput.
