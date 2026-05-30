@@ -1,11 +1,5 @@
 # scx-adapt-experiments
 
-## Project Summary
-
-This project addresses optimal CPU scheduler configuration for Linux sched_ext using machine learning. It develops a comprehensive testing environment for the scx-adapt framework, implementing multiple BPF-based schedulers and collecting performance metrics across diverse workloads (compilation, database, gaming). The system enables automated evaluation through kernel tracing and data analysis, generating datasets that support ML-driven scheduler optimization and demonstrating measurable performance improvements across all tested workload types.
-
-## Overview
-
 Main purpose of `scx-adapt-experiments` is to create a testing and experimenting environment for the [scx-adapt](https://github.com/dogukanmeral/scx-adapt) project. It consists of scheduling data, profile .yaml file examples and data analysis of the scheduling metrics combined with system variables. Also includes Bash and Go scripts which control and check [sched_ext](https://sched-ext.com/docs/OVERVIEW) status and compile [BPF](https://serverspace.io/support/help/what-is-bpf-in-linux-and-how-does-it-work/) schedulers written in C to [BPF bytecode](https://blogs.oracle.com/linux/bpf-in-depth-the-bpf-bytecode-and-the-bpf-verifier).
 
 ## Dependencies
