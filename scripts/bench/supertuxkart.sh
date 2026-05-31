@@ -31,5 +31,5 @@ benchmark_func() {
 }
 
 benchmark_cleanup() {
-    :
+    pgrep stress > /dev/null && killall stress
 }

@@ -22,7 +22,6 @@ contains() {
 sched_ext_active_check() {
     if [ -e "/sys/kernel/sched_ext/root/ops" ]; then
         printf "sched_ext is already active: %s\n" "$(cat /sys/kernel/sched_ext/root/ops)"
-        runner_cleanup
         exit 1
     fi
 }
@@ -30,7 +29,6 @@ sched_ext_active_check() {
 scx-adapt_active_check() {
     if [ -e "/var/lib/scx-adapt/scx-adapt.lock" ]; then
         printf "scx-adapt is already active, lock file exists"
-        runner_cleanup
         exit 1
     fi
 }
@@ -42,7 +40,6 @@ entity_name_finder() {
         ENTITY_NAME="$SCHED_NAME"
     else
         printf "Entity name not in %s" "${VALID_BENCH_TYPES[@]}"
-        runner_cleanup
         exit 1
     fi
 }
@@ -65,6 +62,14 @@ while [[ $# -gt 0 ]]; do
             fi 
             shift # Past argument
             shift # Past value
+            ;;
+        -c|--csv)
+            CSV_LOG=true
+            shift # Past argument
+            ;;
+        -w|--warmup)
+            WARMUP=true
+            shift # Past argument
             ;;
         -*)
             printf "Unknown option %s\n" "$1"
@@ -116,6 +121,8 @@ runner_cleanup() {
     benchmark_cleanup
 }
 
+trap runner_cleanup INT EXIT
+
 echo 1 > /sys/devices/system/cpu/cpufreq/boost
 cpupower frequency-set -g performance > /dev/null
 
@@ -150,7 +157,6 @@ bench_run_sched_ext() {
             "$SCHED_PATH" 1>"$LOGDIR"/"$SCHED_NAME".log 2>&1 &
         else
             printf "Scheduler not found at %s\n" "$SCHED_PATH"
-            runner_cleanup
             exit 1
         fi
 
@@ -165,9 +171,15 @@ bench_run_sched_ext() {
         
         printf "Scheduler attached: %s\n" "$SCHED_NAME"
 
+        if [ "$CSV_LOG" = true ]; then
+            scx-adapt log-csv "$LOGDIR"/system_metrics.csv &
+        fi
+
         benchmark_func
 
         killall "$SCHED_NAME" || { printf "Error: Stopping scheduler %s\n" "$SCHED_NAME" ; exit 1; }
+
+        killall "scx-adapt" || { printf "Error: Stopping log-csv failed for: %s\n" "$CONFIG_PATH" ; exit 1; }
 
         perf_postproc
     done
@@ -188,7 +200,6 @@ bench_run_scx-adapt() {
             scx-adapt start-profile "$CONFIG_PATH" 1>"$LOGDIR"/"$CONFIG_NAME".log 2>&1 &
         else
             printf "YAML config not found at %s\n" "$CONFIG_PATH"
-            runner_cleanup
             exit 1
         fi
 
@@ -201,10 +212,17 @@ bench_run_scx-adapt() {
 
         printf "scx-adapt configuration attached: %s\n" "$CONFIG_NAME"
 
-        benchmark_warmup
+        if [ "$CSV_LOG" = true ]; then
+            scx-adapt log-csv "$LOGDIR"/system_metrics.csv &
+        fi
+
+        if [ "$WARMUP" = true ]; then
+            benchmark_warmup
+        fi
+
         benchmark_func
 
-        killall "scx-adapt" || { printf "Error: Stopping scx-adapt configuration %s\n" "$CONFIG_PATH" ; runner_cleanup; exit 1; }
+        killall "scx-adapt" || { printf "Error: Stopping scx-adapt configuration '%s' and log-csv\n" "$CONFIG_PATH" ; exit 1; }
 
         perf_postproc
     done
@@ -218,5 +236,3 @@ case "$BENCHMARK_TYPE" in
         bench_run_scx-adapt "$@"
         ;;
 esac
-
-runner_cleanup
